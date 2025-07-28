@@ -1,0 +1,8 @@
+token.env
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.venv/
+venv/
