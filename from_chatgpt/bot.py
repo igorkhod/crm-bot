@@ -1,16 +1,22 @@
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+import asyncio
 import os
-
+from aiogram import Bot, Dispatcher
+from aiogram.filters import Command
+from aiogram.types import Message
 from dotenv import load_dotenv
+
 load_dotenv()
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
-dp = Dispatcher(bot)
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
 
-@dp.message_handler(commands=['start'])
-async def start_cmd(message: types.Message):
-    await message.answer("Привет! Я живу в облаке 🕊️")
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    await message.answer("Привет! Я уже в облаке на aiogram 3.x 🕊️")
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
