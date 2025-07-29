@@ -203,6 +203,33 @@ async def main():
     threading.Thread(target=run_web, daemon=True).start()
     await dp.start_polling(bot)
 
+async def call_chatgpt_api(prompt: str) -> str:
+    api_key = os.getenv("IGOR_OPENAI_API")
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            r = await resp.json()
+            return r["choices"][0]["message"]["content"]
+
+async def call_deepseek_api(prompt: str) -> str:
+    api_key = os.getenv("IGOR_KHOD_DEEPSEEK_API_KEY")
+    url = "https://api.deepseek.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    data = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            r = await resp.json()
+            return r["choices"][0]["message"]["content"]
 
 if __name__ == "__main__":
     asyncio.run(main())
