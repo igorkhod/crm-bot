@@ -17,7 +17,7 @@ from telegram_bot_calendar import DetailedTelegramCalendar, LSTEP
 from pytils.dt import ru_strftime
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv("/etc/secrets/token.env")
 
 # Загружаем токены
 # load_dotenv()
