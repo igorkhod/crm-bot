@@ -56,4 +56,179 @@ def main_keyboard():
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 def ai_keyboard():
-    return InlineKeybo
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🤖 ChatGPT", callback_data="ask_gpt"),
+            InlineKeyboardButton(text="🧠 DeepSeek", callback_data="ask_deepseek"),
+        ]
+    ])
+
+def city_keyboard():
+    kb = [
+        [KeyboardButton(text=name)] for name in CITIES.keys()
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+def load_quotes():
+    if QUOTES_FILE.exists():
+        try:
+            with open(QUOTES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+
+# ==== Команды ====
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    today = datetime.now().strftime("%d.%m.%Y")
+    await message.answer(
+        f"Привет! Я работаю через WEBHOOK ☁️\nСегодня {today}\nОтвет сервера: RENDER",
+        reply_markup=main_keyboard()
+    )
+    await message.answer("Попробуй ИИ:", reply_markup=ai_keyboard())
+
+
+# ==== Обработчик выбора AI ====
+
+@dp.callback_query(lambda c: c.data in ["ask_gpt", "ask_deepseek"])
+async def ask_ai(callback_query: types.CallbackQuery):
+    service = "ChatGPT" if callback_query.data == "ask_gpt" else "DeepSeek"
+    await callback_query.message.answer(f"Ты выбрал {service}. Напиши свой вопрос.")
+    user_choice[callback_query.from_user.id] = callback_query.data
+
+
+# ==== Общий обработчик текста ====
+
+@dp.message()
+async def process_user_message(message: Message):
+    choice = user_choice.get(message.from_user.id)
+
+    # Если пользователь выбрал AI
+    if choice:
+        if choice == "ask_gpt":
+            await message.answer("Жду ответ от ChatGPT...")
+            answer = await call_chatgpt_api(message.text)
+            await message.answer(answer)
+        elif choice == "ask_deepseek":
+            await message.answer("Жду ответ от DeepSeek...")
+            answer = await call_deepseek_api(message.text)
+            await message.answer(answer)
+
+        user_choice.pop(message.from_user.id, None)
+        return
+
+    # Если пользователь пишет команды (без выбора AI)
+    if message.text == "🌤 Погода":
+        await message.answer("Выберите город:", reply_markup=city_keyboard())
+
+    elif message.text in CITIES:
+        await show_weather(message)
+
+    elif message.text == "💵 Курс валют":
+        await show_currency(message)
+
+    elif message.text == "💬 Цитата":
+        await send_random_quote(message)
+
+    elif message.text == "❓ Помощь":
+        await show_help(message)
+
+
+# ==== Погода ====
+
+async def show_weather(message: Message):
+    city = message.text
+    code = CITIES[city]
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={code},RU&appid={WEATHER_API_KEY}&units=metric&lang=ru"
+    try:
+        r = requests.get(url)
+        data = r.json()
+        temp = data['main']['temp']
+        desc = data['weather'][0]['description'].capitalize()
+        await message.answer(f"Погода в {city}: {temp:.1f}°C, {desc}", reply_markup=main_keyboard())
+    except Exception as e:
+        await message.answer(f"Ошибка погоды: {e}", reply_markup=main_keyboard())
+
+
+# ==== Курс валют ====
+
+async def show_currency(message: Message):
+    data = requests.get("https://www.cbr-xml-daily.ru/daily_json.js").json()
+    usd = data['Valute']['USD']['Value']
+    eur = data['Valute']['EUR']['Value']
+    await message.answer(f"USD: {usd:.2f}₽\nEUR: {eur:.2f}₽", reply_markup=main_keyboard())
+
+
+# ==== Цитаты ====
+
+async def send_random_quote(message: Message):
+    quotes = load_quotes()
+    if not quotes:
+        await message.answer("Нет цитат.", reply_markup=main_keyboard())
+        return
+    q = random.choice(quotes)
+    text = q['text'] if isinstance(q, dict) else str(q)
+    await message.answer(f"«{text}»", reply_markup=main_keyboard())
+
+
+# ==== Помощь ====
+
+async def show_help(message: Message):
+    await message.answer("Помощь: /start, погода, курс валют, цитаты", reply_markup=main_keyboard())
+
+
+# ==== Вызов API ChatGPT и DeepSeek ====
+
+async def call_chatgpt_api(prompt: str) -> str:
+    api_key = os.getenv("IGOR_OPENAI_API")
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            r = await resp.json()
+            return r["choices"][0]["message"]["content"]
+
+async def call_deepseek_api(prompt: str) -> str:
+    api_key = os.getenv("IGOR_KHOD_DEEPSEEK_API_KEY")
+    url = "https://api.deepseek.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    data = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=data) as resp:
+            r = await resp.json()
+            return r["choices"][0]["message"]["content"]
+
+
+# ==== Webhook обработчик ====
+
+@app.post(WEBHOOK_PATH)
+async def webhook(request: Request):
+    data = await request.json()
+    await dp.feed_webhook_update(bot, types.Update(**data))
+    return {"ok": True}
+
+@app.on_event("startup")
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL)
+
+@app.get("/")
+def root():
+    return {"status": "ok", "bot": "running"}
+
+
+# ==== Запуск ====
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=10000)
