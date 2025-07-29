@@ -40,8 +40,11 @@ CITIES = {
     "Иркутск": "Irkutsk"
 }
 
+# === Основная клавиатура ===
 def main_keyboard():
     kb = [
+        [KeyboardButton(text="🔮 Психонетика Инь-Ян"),
+         KeyboardButton(text="🌲 Иркутск психотехнологии")],
         [KeyboardButton(text="🌤 Погода"),
          KeyboardButton(text="💵 Курс валют")],
         [KeyboardButton(text="💬 Цитата"),
@@ -72,6 +75,7 @@ def load_quotes():
             return []
     return []
 
+# === /start ===
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     today = datetime.now().strftime("%d.%m.%Y")
@@ -81,12 +85,14 @@ async def cmd_start(message: Message):
     )
     await message.answer("Попробуй ИИ:", reply_markup=ai_keyboard())
 
+# === Callback-кнопки ChatGPT / DeepSeek ===
 @dp.callback_query(lambda c: c.data in ["ask_gpt", "ask_deepseek"])
 async def ask_ai(callback_query: types.CallbackQuery):
     service = "ChatGPT" if callback_query.data == "ask_gpt" else "DeepSeek"
     await callback_query.message.answer(f"Ты выбрал {service}. Напиши свой вопрос.")
     user_choice[callback_query.from_user.id] = callback_query.data
 
+# === Обработчик текста ===
 @dp.message()
 async def process_user_message(message: Message):
     choice = user_choice.get(message.from_user.id)
@@ -102,17 +108,35 @@ async def process_user_message(message: Message):
         user_choice.pop(message.from_user.id, None)
         return
 
-    if message.text == "🌤 Погода":
+    # --- Обработка кнопок меню ---
+    if message.text == "🔮 Психонетика Инь-Ян":
+        await message.answer(
+            "Присоединяйтесь к группе:\nhttps://t.me/+EL9esd0xZ-xkMTU6",
+            reply_markup=main_keyboard()
+        )
+
+    elif message.text == "🌲 Иркутск психотехнологии":
+        await message.answer(
+            "Присоединяйтесь к группе:\nhttps://t.me/+7ZBrobhAJoRhM2U6",
+            reply_markup=main_keyboard()
+        )
+
+    elif message.text == "🌤 Погода":
         await message.answer("Выберите город:", reply_markup=city_keyboard())
+
     elif message.text in CITIES:
         await show_weather(message)
+
     elif message.text == "💵 Курс валют":
         await show_currency(message)
+
     elif message.text == "💬 Цитата":
         await send_random_quote(message)
+
     elif message.text == "❓ Помощь":
         await show_help(message)
 
+# === Погода ===
 async def show_weather(message: Message):
     city = message.text
     code = CITIES[city]
@@ -126,12 +150,14 @@ async def show_weather(message: Message):
     except Exception as e:
         await message.answer(f"Ошибка погоды: {e}", reply_markup=main_keyboard())
 
+# === Курс валют ===
 async def show_currency(message: Message):
     data = requests.get("https://www.cbr-xml-daily.ru/daily_json.js").json()
     usd = data['Valute']['USD']['Value']
     eur = data['Valute']['EUR']['Value']
     await message.answer(f"USD: {usd:.2f}₽\nEUR: {eur:.2f}₽", reply_markup=main_keyboard())
 
+# === Цитаты ===
 async def send_random_quote(message: Message):
     quotes = load_quotes()
     if not quotes:
@@ -141,10 +167,11 @@ async def send_random_quote(message: Message):
     text = q['text'] if isinstance(q, dict) else str(q)
     await message.answer(f"«{text}»", reply_markup=main_keyboard())
 
+# === Помощь ===
 async def show_help(message: Message):
     await message.answer("Помощь: /start, погода, курс валют, цитаты", reply_markup=main_keyboard())
 
-# === OpenAI и DeepSeek API ===
+# === Вызовы API ===
 async def call_chatgpt_api(prompt: str) -> str:
     api_key = os.getenv("IGOR_OPENAI_API")
     url = "https://api.openai.com/v1/chat/completions"
