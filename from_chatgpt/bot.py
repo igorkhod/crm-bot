@@ -19,6 +19,7 @@ from aiogram.types import (
 import requests
 import aiohttp
 
+
 # Загружаем секреты из файла Render
 load_dotenv("/etc/secrets/token.env")
 
