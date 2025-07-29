@@ -81,13 +81,27 @@ def load_quotes():
 
 
 # --- Команды ---
+# @dp.message(Command("start"))
+# async def cmd_start(message: Message):
+#     today = datetime.now()
+#     weekday = WEEKDAYS_RU.get(today.strftime("%A"), today.strftime("%A"))
+#     date_str = today.strftime("%d.%m.%Y") + f" ({weekday})"
+#     await message.answer(f"Добро пожаловать!\nСегодня {date_str}\nВыберите действие:",
+#                          reply_markup=main_keyboard())
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     today = datetime.now()
     weekday = WEEKDAYS_RU.get(today.strftime("%A"), today.strftime("%A"))
     date_str = today.strftime("%d.%m.%Y") + f" ({weekday})"
-    await message.answer(f"Добро пожаловать!\nСегодня {date_str}\nВыберите действие:",
-                         reply_markup=main_keyboard())
+
+    # Добавим метку сервиса
+    host = os.environ.get("RENDER_SERVICE_NAME", "LOCAL")
+
+    await message.answer(
+        f"Добро пожаловать!\nСегодня {date_str}\n"
+        f"Ответ сервера: {host}",
+        reply_markup=main_keyboard()
+    )
 
 
 @dp.message(Command("time"))
