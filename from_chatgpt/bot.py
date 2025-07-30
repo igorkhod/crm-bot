@@ -12,11 +12,17 @@ from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 
-from from_chatgpt.db import init_db, update_visitor, start_session, update_session, get_stats
+from from_chatgpt.db import (
+    init_db,
+    update_visitor,
+    start_session,
+    update_session,
+    get_stats,
+)
 
-# from db import init_db, update_visitor, start_session, update_session, get_stats
-# версия от17:16 30.07.2025
-# ========== Загрузка окружения ==========
+# ===========================
+# Определяем окружение
+# ===========================
 local_env = Path(__file__).parent / "token_local.env"
 prod_env = Path(__file__).parent / "token.env"
 
@@ -36,7 +42,9 @@ else:
 print(f"Использую секреты: {env_file}")
 print(f"Режим запуска: {ENVIRONMENT}")
 
-# ========== Константы ==========
+# ===========================
+# Константы
+# ===========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 WEBHOOK_PATH = "/webhook"
@@ -44,22 +52,20 @@ WEBHOOK_URL = "https://telegram-cloud-bot-kwcs.onrender.com/webhook"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+# Инициализация базы
 init_db()
 
-# создаём app всегда, даже для LOCAL
-from fastapi import FastAPI, Request
-app = FastAPI()
-
 if ENVIRONMENT == "RENDER":
+    from fastapi import FastAPI, Request
     from contextlib import asynccontextmanager
 
-    @app.on_event("startup")
-    async def on_startup():
-        # при старте Render — установить webhook
+    @asynccontextmanager
+    async def lifespan(app: "FastAPI"):
         await bot.set_webhook(WEBHOOK_URL)
+        yield
 
-
-
+    app = FastAPI(lifespan=lifespan)
 
 CITIES = {"Красноярск": "Krasnoyarsk", "Иркутск": "Irkutsk"}
 WEEKDAYS_RU = {
@@ -71,8 +77,9 @@ WEEKDAYS_RU = {
 QUOTES_FILE = Path(__file__).parent / "data" / "quotes.json"
 user_choice = {}
 
-
-# ========== Клавиатуры ==========
+# ===========================
+# Клавиатуры
+# ===========================
 def main_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔮 Психонетика Инь-Ян", callback_data="group_psy"),
@@ -85,12 +92,10 @@ def main_keyboard():
         [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
 
-
 def city_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=name, callback_data=f"city:{name}")] for name in CITIES.keys()
     ])
-
 
 def load_quotes():
     if QUOTES_FILE.exists():
@@ -100,7 +105,6 @@ def load_quotes():
         except:
             return []
     return []
-
 
 async def animate_dots(chat_id, text, stop_event: asyncio.Event):
     dots = ["•", "●", "●●", "●●●"]
@@ -116,29 +120,29 @@ async def animate_dots(chat_id, text, stop_event: asyncio.Event):
                 return msg
     return msg
 
-
-# ========== /start ==========
+# ===========================
+# Команды
+# ===========================
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    # --- заплатка: записываем пользователя и начинаем сессию ---
     update_visitor(message.from_user.id, message.from_user.username or "")
     start_session(message.from_user.id)
-    # --- конец заплатки ---
+
     now = datetime.now()
     weekday = WEEKDAYS_RU[now.strftime("%A")]
     date_str = now.strftime("%d.%m.%Y") + f" ({weekday})"
 
-    await message.answer(f"Привет! Сегодня {date_str}", reply_markup=main_keyboard())
+    env_note = "БОЕВОЙ" if ENVIRONMENT == "RENDER" else "ЛОКАЛЬНЫЙ (отладка)"
 
+    await message.answer(
+        f"Привет! Сегодня {date_str}\n"
+        f"Режим бота: {env_note}",
+        reply_markup=main_keyboard()
+    )
 
-# ========== /start ==========
-# ========== /stats начало ==========
 @dp.message(Command("stats"))
 async def cmd_stats(message: Message):
-    loop = asyncio.get_running_loop()
-    # выполняем get_stats в пуле потоков
-    stats = await loop.run_in_executor(None, get_stats)
-    count, first_seen, session_count, first_session, total_seconds = stats
+    count, first_seen, session_count, first_session, total_seconds = get_stats()
     h = total_seconds // 3600
     m = (total_seconds % 3600) // 60
     await message.answer(
@@ -146,17 +150,13 @@ async def cmd_stats(message: Message):
         f"Сессий: {session_count}\nПервый сеанс: {first_session}\n"
         f"Время в боте: {h} ч {m} мин"
     )
-    # ========== /stats конец==========
 
-
-# ========== Callback Query (основная логика кнопок) ==========
+# ===========================
+# Callback кнопки
+# ===========================
 @dp.callback_query()
 async def callback_handler(callback: types.CallbackQuery):
-    # --- заплатка: обновляем время активности ---
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, update_session, callback.from_user.id)
-    # --- конец заплатки ---
-
+    update_session(callback.from_user.id)
     data = callback.data
 
     if data == "group_psy":
@@ -202,15 +202,12 @@ async def callback_handler(callback: types.CallbackQuery):
         await show_help(callback.message)
         return
 
-
-# ========== Обычные сообщения (для ИИ) ==========
+# ===========================
+# Обычные сообщения (ИИ)
+# ===========================
 @dp.message()
 async def process_user_message(message: Message):
-    # --- заплатка: обновляем время активности ---
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, update_session, message.from_user.id)
-    # --- конец заплатки ---
-
+    update_session(message.from_user.id)
     choice = user_choice.get(message.from_user.id)
 
     if choice == "ask_gpt":
@@ -233,8 +230,20 @@ async def process_user_message(message: Message):
         user_choice.pop(message.from_user.id, None)
         return
 
+    # РЕЗЕРВ для команды /stats, если Telegram не распознал как команду
+    if message.text.strip() == "/stats":
+        count, first_seen, session_count, first_session, total_seconds = get_stats()
+        h = total_seconds // 3600
+        m = (total_seconds % 3600) // 60
+        await message.answer(
+            f"Пользователей: {count}\nПервый визит: {first_seen}\n\n"
+            f"Сессий: {session_count}\nПервый сеанс: {first_session}\n"
+            f"Время в боте: {h} ч {m} мин"
+        )
 
-# ========== Функции ==========
+# ===========================
+# Функции
+# ===========================
 async def show_weather(msg, city):
     code = CITIES[city]
     url = f"http://api.openweathermap.org/data/2.5/weather?q={code},RU&appid={WEATHER_API_KEY}&units=metric&lang=ru"
@@ -243,24 +252,22 @@ async def show_weather(msg, city):
     desc = r["weather"][0]["description"].capitalize()
     await msg.edit_text(f"Погода в {city}: {temp:.1f}°C, {desc}", reply_markup=main_keyboard())
 
-
 async def show_currency(msg):
     data = requests.get("https://www.cbr-xml-daily.ru/daily_json.js").json()
     usd, eur = data["Valute"]["USD"]["Value"], data["Valute"]["EUR"]["Value"]
     await msg.edit_text(f"USD: {usd:.2f}₽\nEUR: {eur:.2f}₽", reply_markup=main_keyboard())
-
 
 async def send_random_quote(msg):
     q = random.choice(load_quotes() or ["Нет цитат"])
     text = q["text"] if isinstance(q, dict) else q
     await msg.edit_text(f"«{text}»", reply_markup=main_keyboard())
 
-
 async def show_help(msg):
     await msg.edit_text("Помощь: выберите команду из меню", reply_markup=main_keyboard())
 
-
-# ========== AI API ==========
+# ===========================
+# AI API
+# ===========================
 async def call_chatgpt_api(prompt: str) -> str:
     key = os.getenv("IGOR_OPENAI_API")
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
@@ -268,7 +275,6 @@ async def call_chatgpt_api(prompt: str) -> str:
     async with aiohttp.ClientSession() as s:
         async with s.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data) as r:
             return (await r.json())["choices"][0]["message"]["content"]
-
 
 async def call_deepseek_api(prompt: str) -> str:
     key = os.getenv("IGOR_KHOD_DEEPSEEK_API_KEY")
@@ -280,8 +286,9 @@ async def call_deepseek_api(prompt: str) -> str:
         async with s.post("https://api.deepseek.com/v1/chat/completions", headers=headers, json=data) as r:
             return (await r.json())["choices"][0]["message"]["content"]
 
-
-# ========== Webhook ==========
+# ===========================
+# Webhook (только для Render)
+# ===========================
 if ENVIRONMENT == "RENDER":
     @app.post(WEBHOOK_PATH)
     async def webhook(request: Request):
@@ -289,17 +296,26 @@ if ENVIRONMENT == "RENDER":
         await dp.feed_webhook_update(bot, types.Update(**data))
         return {"ok": True}
 
-
     @app.get("/")
     def root():
         return {"status": "ok", "bot": "running"}
 
+# ===========================
+# Точка входа
+# ===========================
 if __name__ == "__main__":
     if ENVIRONMENT in ["LOCAL", "PROD_LOCAL"]:
-        print("LOCAL POLLING...")
+        import requests
+
+        # --- ЗАПЛАТКА: убираем webhook перед polling ---
+        requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+        print("Webhook удален перед polling.")
+        # --- конец заплатки ---
+
+        print("Запуск локального бота через polling...")
         asyncio.run(dp.start_polling(bot))
     else:
         import uvicorn
 
-        print("RENDER WEBHOOK...")
+        print("Запуск бота на Render через webhook...")
         uvicorn.run(app, host="0.0.0.0", port=10000)
