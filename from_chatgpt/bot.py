@@ -12,7 +12,8 @@ from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 
-from db import init_db, update_visitor, start_session, update_session, get_stats
+from from_chatgpt.db import init_db, update_visitor, start_session, update_session, get_stats
+# from db import init_db, update_visitor, start_session, update_session, get_stats
 # версия от17:16 30.07.2025
 # ========== Загрузка окружения ==========
 local_env = Path(__file__).parent / "token_local.env"
