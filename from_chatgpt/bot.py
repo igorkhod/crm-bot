@@ -13,6 +13,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 
 from from_chatgpt.db import init_db, update_visitor, start_session, update_session, get_stats
+
 # from db import init_db, update_visitor, start_session, update_session, get_stats
 # версия от17:16 30.07.2025
 # ========== Загрузка окружения ==========
@@ -43,22 +44,22 @@ WEBHOOK_URL = "https://telegram-cloud-bot-kwcs.onrender.com/webhook"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-# <<< Сразу после создания dp вставляешь init_db() >>>
 init_db()
 
+# создаём app всегда, даже для LOCAL
+from fastapi import FastAPI, Request
+app = FastAPI()
+
 if ENVIRONMENT == "RENDER":
-    from fastapi import FastAPI, Request
     from contextlib import asynccontextmanager
 
-
-    @asynccontextmanager
-    async def lifespan(app: "FastAPI"):
+    @app.on_event("startup")
+    async def on_startup():
+        # при старте Render — установить webhook
         await bot.set_webhook(WEBHOOK_URL)
-        yield
 
 
-    app = FastAPI(lifespan=lifespan)
+
 
 CITIES = {"Красноярск": "Krasnoyarsk", "Иркутск": "Irkutsk"}
 WEEKDAYS_RU = {
@@ -128,6 +129,8 @@ async def cmd_start(message: Message):
     date_str = now.strftime("%d.%m.%Y") + f" ({weekday})"
 
     await message.answer(f"Привет! Сегодня {date_str}", reply_markup=main_keyboard())
+
+
 # ========== /start ==========
 # ========== /stats начало ==========
 @dp.message(Command("stats"))
@@ -144,6 +147,8 @@ async def cmd_stats(message: Message):
         f"Время в боте: {h} ч {m} мин"
     )
     # ========== /stats конец==========
+
+
 # ========== Callback Query (основная логика кнопок) ==========
 @dp.callback_query()
 async def callback_handler(callback: types.CallbackQuery):
