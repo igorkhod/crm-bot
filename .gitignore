@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Databases
 *.sqlite3
 *.db
 
@@ -15,10 +17,9 @@ venv/
 .idea/
 .vscode/
 
-# OS
-.DS_Store
-Thumbs.db
-
 # Secrets
 *.env
 token_local.env
+
+# Logs
+*.log
