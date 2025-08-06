@@ -20,6 +20,9 @@ from from_chatgpt.db import (
     get_stats,
 )
 
+from from_chatgpt.currency_calculator import register_currency_handlers
+
+
 # ===========================
 # Определяем окружение
 # ===========================
@@ -52,6 +55,8 @@ WEBHOOK_URL = "https://telegram-cloud-bot-kwcs.onrender.com/webhook"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+register_currency_handlers(dp, main_menu_callback=lambda msg: msg.edit_text("Вы в главном меню", reply_markup=main_keyboard()))
 
 # Инициализация базы
 init_db()
@@ -87,7 +92,7 @@ def main_keyboard():
         [InlineKeyboardButton(text="🌤 Погода", callback_data="weather"),
          InlineKeyboardButton(text="💵 Курс валют", callback_data="currency")],
         [InlineKeyboardButton(text="💬 Цитата", callback_data="quote")],
-        [InlineKeyboardButton(text="🤖 ChatGPT", callback_data="ask_gpt"),
+        [InlineKeyboardButton(text="🤖 ChatGPT (нужен VPN)", callback_data="ask_gpt"),
          InlineKeyboardButton(text="🧠 DeepSeek", callback_data="ask_deepseek")],
         [InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
@@ -133,11 +138,10 @@ async def cmd_start(message: Message):
     date_str = now.strftime("%d.%m.%Y") + f" ({weekday})"
 
     env_note = "БОЕВОЙ" if ENVIRONMENT == "RENDER" else "ЛОКАЛЬНЫЙ (отладка)"
-
+    # print("Режим бота:", env_note)
     await message.answer(
-        f"Привет! Сегодня {date_str}\n"
-        f"Режим бота: {env_note}",
-        reply_markup=main_keyboard()
+        f"Привет! Сегодня {date_str}", reply_markup=main_keyboard()
+        # f"Режим бота: {env_note}",
     )
 
 @dp.message(Command("stats"))
@@ -179,10 +183,16 @@ async def callback_handler(callback: types.CallbackQuery):
         city = data.split(":", 1)[1]
         await show_weather(callback.message, city)
         return
-
+    # === начало калькулятора ===
     if data == "currency":
-        await show_currency(callback.message)
+        from from_chatgpt.currency_calculator import user_state, main_calculator_kb, format_value
+        user_state[callback.from_user.id] = {"from": "USD", "to": "RUB", "amount_str": ""}
+        await callback.message.edit_text(
+            "Калькулятор валют\n\n" + format_value(callback.from_user.id),
+            reply_markup=main_calculator_kb(callback.from_user.id)
+        )
         return
+    # === конец калькулятора ===
 
     if data == "quote":
         await send_random_quote(callback.message)
