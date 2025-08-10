@@ -1,64 +1,63 @@
-# Python
+# === Python cache ===
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Databases
+# === Databases ===
 *.aiosqlite
 *.db
+*.sqlite3
 
-# Virtual environment
+# === Virtual environment ===
 .venv/
 env/
 venv/
 
-# IDE
+# === IDE ===
 .idea/
 .vscode/
 
-# Secrets
+# === Secrets ===
 *.env
 token_local.env
+token.ini
+keys.py
 
-# Logs
+# === Logs ===
 *.log
 
-# Local dev/test files
-*.sqlite3
-*.zip
-*.ini
+# === Media & Static ===
 *.jpg
-*.docx
-*.json
-*.txt
-*.pyc
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.svg
+static/
+images/
+
+# === Temp & Archive files ===
+*.zip
+*.rar
+*.7z
+tmp/
 null
 null.txt
-tmp/
-images/
-static/
 
-# Old/test scripts
-123.py
-*.py
-!from_chatgpt/**/*.py
+# === Local data & test scripts ===
+bot_data.sqlite3
+from_chatgpt/*.zip
+from_chatgpt/*.sqlite3
+from_chatgpt/instructions.txt
+from_chatgpt/patch_*.zip
+*_test.py
+test*.py
+tmp*.py
 
-# Лишние каталоги
-images/
-static/
-tmp/
-data/
+# === Exclude everything except CRM ===
+# В корне оставляем только from_chatgpt/ и внутри него CRM
+!from_chatgpt/
+from_chatgpt/*
+!from_chatgpt/crm/
 
-# Лишние расширения
-*.zip
-*.sqlite3
-*.jpg
-*.png
-*.docx
-*.json
-*.txt
-
-# Все тестовые скрипты в корне
-*.py
-!from_chatgpt/**/*.py
