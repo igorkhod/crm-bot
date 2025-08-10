@@ -43,3 +43,22 @@ static/
 123.py
 *.py
 !from_chatgpt/**/*.py
+
+# Лишние каталоги
+images/
+static/
+tmp/
+data/
+
+# Лишние расширения
+*.zip
+*.sqlite3
+*.jpg
+*.png
+*.docx
+*.json
+*.txt
+
+# Все тестовые скрипты в корне
+*.py
+!from_chatgpt/**/*.py
