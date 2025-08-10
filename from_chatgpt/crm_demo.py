@@ -10,9 +10,9 @@ from aiogram.enums.parse_mode import ParseMode
 from dotenv import load_dotenv
 
 from crm.handlers_admin_info import register_admin_info_handlers
-from from_chatgpt.crm.db import DB_PATH
 from from_chatgpt.crm.models import init_crm_db, update_admin_role
 from crm.handlers_registration_login_reset_email import registration_router
+from from_chatgpt.crm.db import DB_PATH, init_db
 
 # Загрузка переменных окружения
 dotenv_path = Path(__file__).resolve().parent / "token_local.env"
@@ -40,9 +40,11 @@ print(f"База данных: {DB_PATH}")
 
 # Инициализация и запуск бота
 async def main():
+    init_db()
     logging.basicConfig(level=logging.INFO)
     await inspect_db()
     await init_crm_db()
+    await inspect_db()
     print("📦 Инициализация CRM-базы...")
     await update_admin_role(ADMIN_ID)
     print("🛠 Обновление роли администратора...")
@@ -54,6 +56,12 @@ async def main():
     )
 
     dp = Dispatcher()
+
+    from crm.handlers_info_schedule import info_schedule_router
+    from crm.handlers_admin_schedule import admin_schedule_router
+    dp.include_router(info_schedule_router)
+    dp.include_router(admin_schedule_router)
+
     # регистрация_роутеров
     dp.include_router(registration_router)
     # Регистрируем хендлеры админ-панели и информации

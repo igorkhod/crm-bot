@@ -130,7 +130,7 @@ async def animate_dots(chat_id, text, stop_event: asyncio.Event):
 # ===========================
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    update_visitor(message.from_user.id, message.from_user.username or "")
+    update_visitor(message.from_user.id, message.from_user.nickname or "")
     start_session(message.from_user.id)
 
     now = datetime.now()
