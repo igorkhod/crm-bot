@@ -5,7 +5,7 @@ __pycache__/
 *.pyd
 
 # Databases
-*.sqlite3
+*.aiosqlite
 *.db
 
 # Virtual environment
@@ -23,3 +23,23 @@ token_local.env
 
 # Logs
 *.log
+
+# Local dev/test files
+*.sqlite3
+*.zip
+*.ini
+*.jpg
+*.docx
+*.json
+*.txt
+*.pyc
+null
+null.txt
+tmp/
+images/
+static/
+
+# Old/test scripts
+123.py
+*.py
+!from_chatgpt/**/*.py
