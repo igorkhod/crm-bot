@@ -1,63 +1,25 @@
-# === Python cache ===
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
+.build/
 
-# === Databases ===
-*.aiosqlite
-*.db
-*.sqlite3
-
-# === Virtual environment ===
+# Environments & IDE
 .venv/
 env/
 venv/
-
-# === IDE ===
 .idea/
 .vscode/
 
-# === Secrets ===
-*.env
-token_local.env
-token.ini
-keys.py
+# OS
+.DS_Store
+Thumbs.db
 
-# === Logs ===
-*.log
-
-# === Media & Static ===
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.svg
-static/
-images/
-
-# === Temp & Archive files ===
-*.zip
-*.rar
-*.7z
-tmp/
-null
-null.txt
-
-# === Local data & test scripts ===
-bot_data.sqlite3
-from_chatgpt/*.zip
-from_chatgpt/*.sqlite3
-from_chatgpt/instructions.txt
-from_chatgpt/patch_*.zip
-*_test.py
-test*.py
-tmp*.py
-
-# === Exclude everything except CRM ===
-# В корне оставляем только from_chatgpt/ и внутри него CRM
-!from_chatgpt/
-from_chatgpt/*
-!from_chatgpt/crm/
-
+# App artifacts
+.env
+crm2.db
+*.sqlite
+*.sqlite3
+logs/
