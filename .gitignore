@@ -23,3 +23,5 @@ crm2.db
 *.sqlite
 *.sqlite3
 logs/
+
+*.zip
