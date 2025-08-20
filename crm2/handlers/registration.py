@@ -1,4 +1,4 @@
-﻿# crm2/handlers/registration.py
+# crm2/handlers/registration.py
 # -*- coding: utf-8 -*-
 # ---------------------------------------------------------------------------
 #  МОДУЛЬ: crm2/handlers/registration.py
@@ -37,7 +37,7 @@
 #    Ник уникален; запись в БД происходит только в финале (UPDATE по telegram_id).
 #
 #  ОТЛАДКА:
-#    DEBUG_MODE = False (только для ADMIN_TG_ID) включает кнопку
+#    DEBUG_MODE=True (только для ADMIN_TG_ID) включает кнопку
 #    «Отладка: ввести Telegram ID» — позволяет регистрировать тестовых пользователей
 #    с подменой telegram_id. В бою выключить и удалить хэндлеры отладки.
 # ---------------------------------------------------------------------------
@@ -45,18 +45,18 @@
 from __future__ import annotations
 
 import sqlite3
-from passlib.hash import bcrypt
 
 from aiogram import Router, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import (
     Message,
     ReplyKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardRemove,
 )
-from aiogram.fsm.state import StatesGroup, State
-from aiogram.fsm.context import FSMContext
+from passlib.hash import bcrypt
 
 from crm2.db.sqlite import DB_PATH
 
@@ -64,7 +64,7 @@ router = Router()
 
 # =============================== Отладка ===============================
 # ⚠️ В бою ОБЯЗАТЕЛЬНО: DEBUG_MODE = False и удалить «debug_*» хэндлеры.
-DEBUG_MODE = False
+DEBUG_MODE = True
 ADMIN_TG_ID = 448124106
 # ======================================================================
 
@@ -142,50 +142,15 @@ async def start_registration(message: Message, state: FSMContext):
         )
         return
 
-    # Режим отладки — только для ADMIN_TG_ID: предложим подмену telegram_id
-    if DEBUG_MODE and message.from_user.id == ADMIN_TG_ID:
-        kb = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="Отладка: ввести Telegram ID")],
-                [KeyboardButton(text="Продолжить без подмены ID")],
-            ],
-            resize_keyboard=True,
-        )
-        await message.answer(
-            "Режим отладки: можно подменить Telegram ID для тестовой регистрации.\n"
-            "Выберите действие:",
-            reply_markup=kb,
-        )
-        return
-
     # Обычный путь — начинаем сбор данных
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
-# ---------- Отладка: подмена telegram_id ----------
-
 @router.message(F.text == "Продолжить без подмены ID")
 async def debug_continue_no_fake(message: Message, state: FSMContext):
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-
-
-@router.message(RegistrationFSM.debug_tg_id)
-async def debug_tg_id_entered(message: Message, state: FSMContext):
-    if not (DEBUG_MODE and message.from_user.id == ADMIN_TG_ID):
-        await message.answer("Эта функция недоступна.", reply_markup=ReplyKeyboardRemove())
-        return
-    try:
-        fake_id = int((message.text or "").strip())
-    except ValueError:
-        await message.answer("Введите корректное число (Telegram ID):")
-        return
-
-    await state.update_data(fake_telegram_id=fake_id)
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("✅ Принято. Теперь введите ваше ФИО:")
-# ---------- конец блока отладки ----------
 
 
 @router.message(RegistrationFSM.full_name)
@@ -280,12 +245,12 @@ async def reg_cohort(message: Message, state: FSMContext):
         cur.execute(
             """
             UPDATE users
-               SET full_name     = ?,
-                   nickname      = ?,
-                   password_hash = ?,
-                   role          = 'user',
-                   cohort_id     = ?
-             WHERE telegram_id   = ?
+            SET full_name     = ?,
+                nickname      = ?,
+                password_hash = ?,
+                role          = 'user',
+                cohort_id     = ?
+            WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
         )
@@ -306,6 +271,7 @@ async def reg_cohort(message: Message, state: FSMContext):
     await message.answer(text, reply_markup=kb_login)
     return
 
+
 @router.message(Command("cancel"))
 async def cancel(message: Message, state: FSMContext):
     await state.clear()
@@ -313,5 +279,3 @@ async def cancel(message: Message, state: FSMContext):
         "Регистрация отменена. Нажмите /start, чтобы начать заново.",
         reply_markup=ReplyKeyboardRemove(),
     )
-
-
