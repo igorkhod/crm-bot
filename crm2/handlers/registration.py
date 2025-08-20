@@ -1,4 +1,4 @@
-# crm2/handlers/registration.py
+﻿# crm2/handlers/registration.py
 # -*- coding: utf-8 -*-
 # ---------------------------------------------------------------------------
 #  МОДУЛЬ: crm2/handlers/registration.py
@@ -36,10 +36,7 @@
 #    ФИО → ник → пароль → подтверждение → выбор потока (или «Без потока»).
 #    Ник уникален; запись в БД происходит только в финале (UPDATE по telegram_id).
 #
-#  ОТЛАДКА:
-#    DEBUG_MODE=True (только для ADMIN_TG_ID) включает кнопку
-#    «Отладка: ввести Telegram ID» — позволяет регистрировать тестовых пользователей
-#    с подменой telegram_id. В бою выключить и удалить хэндлеры отладки.
+#    DEBUG_MODE = False (только для ADMIN_TG_ID) включает кнопку
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -61,10 +58,8 @@ from passlib.hash import bcrypt
 from crm2.db.sqlite import DB_PATH
 
 router = Router()
-
-# =============================== Отладка ===============================
 # ⚠️ В бою ОБЯЗАТЕЛЬНО: DEBUG_MODE = False и удалить «debug_*» хэндлеры.
-DEBUG_MODE = True
+DEBUG_MODE = False
 ADMIN_TG_ID = 448124106
 # ======================================================================
 
@@ -128,8 +123,6 @@ def resolve_telegram_id(message: Message, data: dict) -> int:
 @router.message(Command("register"))
 async def start_registration(message: Message, state: FSMContext):
     await state.clear()
-
-    # Если юзер уже есть — не пускаем регистрироваться повторно (кроме отладки)
     already = get_user_by_tg_id(message.from_user.id)
     if already and not DEBUG_MODE:
         kb = ReplyKeyboardMarkup(
@@ -279,3 +272,6 @@ async def cancel(message: Message, state: FSMContext):
         "Регистрация отменена. Нажмите /start, чтобы начать заново.",
         reply_markup=ReplyKeyboardRemove(),
     )
+
+
+
