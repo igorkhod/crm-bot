@@ -1,4 +1,4 @@
-# crm2/handlers/registration.py
+﻿# crm2/handlers/registration.py
 # -*- coding: utf-8 -*-
 # ---------------------------------------------------------------------------
 #  МОДУЛЬ: crm2/handlers/registration.py
@@ -37,7 +37,7 @@
 #    Ник уникален; запись в БД происходит только в финале (UPDATE по telegram_id).
 #
 #  ОТЛАДКА:
-#    DEBUG_MODE=True (только для ADMIN_TG_ID) включает кнопку
+#    DEBUG_MODE = False (только для ADMIN_TG_ID) включает кнопку
 #    «Отладка: ввести Telegram ID» — позволяет регистрировать тестовых пользователей
 #    с подменой telegram_id. В бою выключить и удалить хэндлеры отладки.
 # ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ router = Router()
 
 # =============================== Отладка ===============================
 # ⚠️ В бою ОБЯЗАТЕЛЬНО: DEBUG_MODE = False и удалить «debug_*» хэндлеры.
-DEBUG_MODE = True
+DEBUG_MODE = False
 ADMIN_TG_ID = 448124106
 # ======================================================================
 
@@ -164,14 +164,6 @@ async def start_registration(message: Message, state: FSMContext):
 
 
 # ---------- Отладка: подмена telegram_id ----------
-@router.message(F.text == "Отладка: ввести Telegram ID")
-async def debug_set_tg_id(message: Message, state: FSMContext):
-    if not (DEBUG_MODE and message.from_user.id == ADMIN_TG_ID):
-        await message.answer("Эта функция недоступна.", reply_markup=ReplyKeyboardRemove())
-        return
-    await state.set_state(RegistrationFSM.debug_tg_id)
-    await message.answer("Введите желаемый Telegram ID (число):", reply_markup=ReplyKeyboardRemove())
-
 
 @router.message(F.text == "Продолжить без подмены ID")
 async def debug_continue_no_fake(message: Message, state: FSMContext):
@@ -321,3 +313,5 @@ async def cancel(message: Message, state: FSMContext):
         "Регистрация отменена. Нажмите /start, чтобы начать заново.",
         reply_markup=ReplyKeyboardRemove(),
     )
+
+
