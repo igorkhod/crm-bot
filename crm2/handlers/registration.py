@@ -235,18 +235,19 @@ async def reg_cohort(message: Message, state: FSMContext):
     # здесь мы обновляем её финальными полями и ролью 'user'
     with get_db_connection() as conn:
         cur = conn.cursor()
+
         cur.execute(
             """
             UPDATE users
-            SET full_name     = ?,
-                nickname      = ?,
-                password_hash = ?,
-                role          = 'user',
-                cohort_id     = ?
+            SET full_name = ?,
+                nickname  = ?,
+                password  = ?, -- ← меняем имя колонки
+                cohort_id = ?
             WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
         )
+
         conn.commit()
     await state.clear()
     text = (
