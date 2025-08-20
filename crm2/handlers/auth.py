@@ -48,7 +48,7 @@ def fetch_user_by_nickname(nickname: str) -> dict | None:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, telegram_id, full_name, nickname, password_hash, role, cohort_id
+            SELECT id, telegram_id, full_name, nickname, password AS password_hash, role, cohort_id
               FROM users
              WHERE nickname = ?
              LIMIT 1
