@@ -235,19 +235,33 @@ async def reg_cohort(message: Message, state: FSMContext):
     # здесь мы обновляем её финальными полями и ролью 'user'
     with get_db_connection() as conn:
         cur = conn.cursor()
+# === начало блока
+        password_hash = bcrypt.hash(data["password"])
 
+        # сначала пробуем обновить
         cur.execute(
             """
             UPDATE users
             SET full_name = ?,
                 nickname  = ?,
-                password  = ?, -- ← меняем имя колонки
+                password  = ?,
                 cohort_id = ?
             WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
         )
 
+        # если не зацепили ни одной строки — создаём новую
+        if cur.rowcount == 0:
+            cur.execute(
+                """
+                INSERT INTO users (telegram_id, username, nickname, password, full_name, role, cohort_id)
+                VALUES (?, ?, ?, ?, ?, 'user', ?)
+                """,
+                (tg_id, data["nickname"], data["nickname"], password_hash, data["full_name"], cohort_id),
+            )
+
+        # === конец блока
         conn.commit()
     await state.clear()
     text = (
