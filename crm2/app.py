@@ -104,7 +104,7 @@ async def main() -> None:
 
     if ADMIN_ID:
         try:
-            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен и готов к работе!")
+            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен! Выберите в меню команду /start для начала работы.")
         except Exception as e:
             logging.error(f"Не удалось написать админу при старте: {e}")
 
