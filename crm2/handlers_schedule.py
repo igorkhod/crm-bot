@@ -5,10 +5,10 @@ from html import escape
 
 from aiogram import Router
 from aiogram.enums.parse_mode import ParseMode
-from aiogram.types import Message, CallbackQuery
 
 from crm2.db import get_upcoming_sessions, get_session_by_id
 from crm2.keyboards import build_schedule_keyboard, format_range
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,23 @@ async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
         await message.answer("Ближайших занятий пока нет.")
         return
 
-    await message.answer(
-        "Выберите дату занятия:",
-        reply_markup=build_schedule_keyboard(sessions),
+    # --- 1) Кнопка "Ближайшее занятие" ---
+    first = sessions[0]
+    first_text = f"{format_range(first['start_date'], first['end_date'])} • {first.get('topic_code') or '—'}"
+    nearest_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=first_text, callback_data=f"session:{first['id']}")]
+        ]
     )
+    await message.answer("Ближайшее занятие:", reply_markup=nearest_kb)
+
+    # --- 2) Остальные даты (без дублирования ближайшей) ---
+    rest = sessions[1:]
+    if rest:
+        await message.answer(
+            "Выберите дату занятия:",
+            reply_markup=build_schedule_keyboard(rest),
+        )
 
 
 @schedule_router.callback_query(lambda c: c.data and c.data.startswith("session:"))

@@ -33,7 +33,7 @@ async def cmd_start(message: Message):
             keyboard=[
                 [KeyboardButton(text="🆕 Зарегистрироваться")],
                 [KeyboardButton(text="🔑 Войти")],
-                [KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
@@ -44,7 +44,7 @@ async def cmd_start(message: Message):
             keyboard=[
                 [KeyboardButton(text="📅 Расписание")],
                 [KeyboardButton(text="📚 Материалы")],
-                [KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
@@ -64,7 +64,7 @@ async def cmd_start(message: Message):
         kb = ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="⚙ Админ-панель")],
-                [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
