@@ -3,20 +3,25 @@
 # Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование. Внутри классы: LoginFSM, функции: build_main_menu, get_db, fetch_user_by_nickname, touch_last_seen, attach_telegram_if_empty....
 # Добавлено автоматически 2025-08-21 05:43:17
 
+import asyncio
 # crm2/handlers/auth.py
 import logging  # если не импортирован вверху
 import sqlite3
-from passlib.hash import bcrypt
+
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from crm2.keyboards import role_kb
-from crm2.db.sqlite import DB_PATH
+from passlib.hash import bcrypt
 
+from crm2.db.sessions import get_user_stream_code_by_tg
+from crm2.db.sqlite import DB_PATH
+from crm2.handlers_schedule import send_schedule_keyboard
+from crm2.keyboards import role_kb
 
 router = Router()
+
 
 # ---------- FSM ----------
 class LoginFSM(StatesGroup):
@@ -46,20 +51,21 @@ def get_db() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def fetch_user_by_nickname(nickname: str) -> dict | None:
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             """
             SELECT id, telegram_id, full_name, nickname, password AS password_hash, role, cohort_id
-              FROM users
-             WHERE nickname = ?
-             LIMIT 1
+            FROM users
+            WHERE nickname = ? LIMIT 1
             """,
             (nickname,),
         )
         row = cur.fetchone()
         return dict(row) if row else None
+
 
 def touch_last_seen(telegram_id: int) -> None:
     with get_db() as conn:
@@ -70,19 +76,22 @@ def touch_last_seen(telegram_id: int) -> None:
         )
         conn.commit()
 
+
 def attach_telegram_if_empty(user_id: int, tg_id: int) -> None:
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
             """
             UPDATE users
-               SET telegram_id = ?
-             WHERE id = ?
-               AND telegram_id IS NULL
+            SET telegram_id = ?
+            WHERE id = ?
+              AND telegram_id IS NULL
             """,
             (tg_id, user_id),
         )
         conn.commit()
+
+
 # ---------- DB helpers (END) ----------
 
 # ---------- Handlers ----------
@@ -155,14 +164,19 @@ async def login_password(message: Message, state: FSMContext):
 
     logging.info(f"login: nickname={user.get('nickname')}, tg_id={tg_id}, role_in_db={role}")
     await state.clear()
-    await message.answer(
-        f"✅ Вход выполнен.\nВы вошли как: {user.get('full_name') or nickname}\nРоль: {role}",
-        reply_markup=role_kb(role)
-    )
-    from crm2.handlers_schedule import send_schedule_keyboard
-    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
-    await send_schedule_keyboard(message, limit=5)
 
-    # txt = next_training_text_for_user(message.from_user.id)
-    # if txt:
-    #     await message.answer(txt)
+    full_name = user.get("full_name") or nickname
+    stream_code = await asyncio.to_thread(get_user_stream_code_by_tg, tg_id)
+
+    text = (
+        "✅ Вход выполнен.\n"
+        f"Вы вошли как: {full_name}\n"
+        f"Роль: {role}"
+    )
+    if stream_code:
+        text += f"\nПоток: {stream_code}"
+
+    await message.answer(text, reply_markup=role_kb(role))
+
+    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
+    await send_schedule_keyboard(message, limit=5, tg_id=tg_id)

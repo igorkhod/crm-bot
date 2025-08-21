@@ -4,10 +4,37 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
+import re
 from typing import List, Dict
 from typing import Optional
 
-from .core import get_db_connection
+from .core import get_db_connection  # используем фабрику подключения
+
+
+def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[sqlite3.Row]:
+    cur = conn.execute(
+        """
+        SELECT s.id                          AS stream_id,
+               COALESCE(s.code, s.title, '') AS stream_code
+        FROM participants p
+                 JOIN users u ON u.id = p.user_id
+                 LEFT JOIN streams s ON s.id = p.stream_id
+        WHERE u.telegram_id = ?
+        ORDER BY p.id DESC LIMIT 1
+        """,
+        (tg_id,),
+    )
+    return cur.fetchone()
+
+
+def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
+    con = get_db_connection()
+    try:
+        con.row_factory = sqlite3.Row
+        row = get_user_stream(con, tg_id)
+        return (row["stream_code"] if row else None)
+    finally:
+        con.close()
 
 
 def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[sqlite3.Row]:
@@ -43,18 +70,17 @@ def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
 
 
 def _detect_table_name(cur) -> Optional[str]:
-    # Ищем и таблицы, и представления; предпочитаем источники, где уже есть start_date/end_date
     cur.execute("""
                 SELECT name
                 FROM sqlite_master
                 WHERE type IN ('table', 'view')
                   AND name IN (
-                               'events_ui', 'events_xlsx', 'v_upcoming_days', 'session_index',
+                               'events_xlsx', 'events_ui', 'v_upcoming_days', 'session_index',
                                'sessions', 'schedule', 'events'
                     )
                 ORDER BY CASE name
-                             WHEN 'events_ui' THEN 1
-                             WHEN 'events_xlsx' THEN 2
+                             WHEN 'events_xlsx' THEN 1
+                             WHEN 'events_ui' THEN 2
                              WHEN 'v_upcoming_days' THEN 3
                              WHEN 'session_index' THEN 4
                              WHEN 'sessions' THEN 5
@@ -149,22 +175,56 @@ def _select_by_id_sql(table: str) -> str:
     raise ValueError(f"Unknown schedule source: {table}")
 
 
-async def get_upcoming_sessions(limit: int = 5) -> List[Dict]:
+# async def get_upcoming_sessions(limit: int = 5) -> List[Dict]:
+import asyncio
+
+async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
     def _q():
         con = get_db_connection()
         try:
+            con.row_factory = sqlite3.Row
             cur = con.cursor()
+
             table = _detect_table_name(cur)
             if not table:
-                logging.warning("[schedule] no table found (expected: events/sessions/schedule)")
                 return []
-            cur.execute(_select_upcoming_sql(table), (limit,))
-            rows = [dict(r) for r in cur.fetchall()]
-            return rows
+
+            stream_id = None
+            source_pat = None
+            if tg_id is not None:
+                row = get_user_stream(con, tg_id)
+                if row:
+                    stream_id = row["stream_id"]
+                    m = re.search(r"(\d+)", row["stream_code"] or "")
+                    if m:
+                        source_pat = f"%_{m.group(1)}_%"  # schedule_2025_2_cohort.xlsx
+
+            sql = _select_upcoming_sql(table)
+            params = []
+
+            if table == "events_xlsx" and source_pat:
+                sql = sql.replace(
+                    "WHERE DATE(start_date) >= DATE('now')",
+                    "WHERE DATE(start_date) >= DATE('now') AND source_file LIKE ?",
+                    1,
+                )
+                params.append(source_pat)
+            elif table == "events" and stream_id:
+                sql = sql.replace(
+                    "WHERE DATE(start_date) >= DATE('now')",
+                    "WHERE DATE(start_date) >= DATE('now') AND stream_id = ?",
+                    1,
+                )
+                params.append(stream_id)
+
+            params.append(limit)
+            cur.execute(sql, tuple(params))
+            return [dict(r) for r in cur.fetchall()]
         finally:
             con.close()
 
     return await asyncio.to_thread(_q)
+
 
 
 async def get_session_by_id(session_id: int) -> Optional[Dict]:

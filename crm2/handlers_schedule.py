@@ -28,7 +28,10 @@ def _short_from_annotation(s: str | None) -> str:
 
 
 # async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
-async def send_schedule_keyboard(message: Message, *, limit: int = 5, include_nearest: bool = True) -> None:
+async def send_schedule_keyboard(message: Message, *, limit: int = 5, include_nearest: bool = True, tg_id: int | None = None) -> None:
+
+    sessions = await get_upcoming_sessions(limit=limit, tg_id=tg_id)
+
     try:
         sessions = await get_upcoming_sessions(limit=limit)
     except Exception:
@@ -79,7 +82,7 @@ async def _render_session_card(callback: CallbackQuery, s: dict, *, show_rest: b
 
     # если это клик по кнопке из списка дат — обновим список ниже (без "ближайшего")
     if show_rest:
-        await send_schedule_keyboard(callback.message, limit=5, include_nearest=False)
+        await send_schedule_keyboard(callback.message, limit=5, include_nearest=False, tg_id=callback.from_user.id)
 
     await callback.answer()
 
