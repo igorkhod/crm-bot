@@ -48,21 +48,9 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
 dp.include_router(start.router)
-from crm2.handlers_schedule import schedule_router
-dp.include_router(schedule_router)
-
 dp.include_router(registration.router)
-from crm2.handlers_schedule import schedule_router
-dp.include_router(schedule_router)
-
 dp.include_router(auth.router)  # <— новое
-from crm2.handlers_schedule import schedule_router
-dp.include_router(schedule_router)
-
 dp.include_router(info.router)  # ← подключение
-from crm2.handlers_schedule import schedule_router
-dp.include_router(schedule_router)
-
 dp.include_router(schedule_router)
 
 @dp.message(F.text == "/start")
