@@ -1,3 +1,4 @@
+#
 # === Файл: crm2/app.py
 # Аннотация: модуль CRM, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование, загрузка конфигурации из .env. Внутри функции: _get_role_from_db, cmd_start, cmd_home, main.
 # Добавлено автоматически 2025-08-21 05:43:17
