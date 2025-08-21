@@ -1,14 +1,49 @@
 # === Файл: crm2/db/sessions.py
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
-import re
-from typing import List, Dict
+from typing import Dict
 from typing import Optional
 
 from .core import get_db_connection  # используем фабрику подключения
+
+
+def get_user_stream_info_by_tg(tg_id: int) -> Optional[dict]:
+    """
+    Возвращает dict со значениями:
+      - stream_id: int
+      - stream_code: str  (берём s.code | s.title | s.name | str(id) — что есть)
+    Никаких жёстких ссылок на несуществующие колонки!
+    """
+    con = get_db_connection()
+    try:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            """
+            SELECT s.id AS stream_id, s.*
+            FROM participants p
+                     JOIN users u ON u.id = p.user_id
+                     LEFT JOIN streams s ON s.id = p.stream_id
+            WHERE u.telegram_id = ?
+            ORDER BY p.id DESC LIMIT 1
+            """,
+            (tg_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        # аккуратно формируем человекочитаемый код потока
+        stream_code = d.get("code") or d.get("title") or d.get("name") or str(d["stream_id"])
+        return {"stream_id": d["stream_id"], "stream_code": stream_code}
+    finally:
+        con.close()
+
+
+def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
+    info = get_user_stream_info_by_tg(tg_id)
+    return info["stream_code"] if info else None
 
 
 def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[sqlite3.Row]:
@@ -175,8 +210,8 @@ def _select_by_id_sql(table: str) -> str:
     raise ValueError(f"Unknown schedule source: {table}")
 
 
-# async def get_upcoming_sessions(limit: int = 5) -> List[Dict]:
 import asyncio
+
 
 async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
     def _q():
@@ -192,12 +227,11 @@ async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
             stream_id = None
             source_pat = None
             if tg_id is not None:
-                row = get_user_stream(con, tg_id)
-                if row:
-                    stream_id = row["stream_id"]
-                    m = re.search(r"(\d+)", row["stream_code"] or "")
-                    if m:
-                        source_pat = f"%_{m.group(1)}_%"  # schedule_2025_2_cohort.xlsx
+                info = get_user_stream_info_by_tg(tg_id)
+                if info:
+                    stream_id = info["stream_id"]
+                    # для Excel-файлов фильтруем по «..._2_...» и т.п.
+                    source_pat = f"%_{stream_id}_%"
 
             sql = _select_upcoming_sql(table)
             params = []
@@ -224,7 +258,6 @@ async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
             con.close()
 
     return await asyncio.to_thread(_q)
-
 
 
 async def get_session_by_id(session_id: int) -> Optional[Dict]:

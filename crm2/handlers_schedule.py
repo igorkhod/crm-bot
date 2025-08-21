@@ -27,9 +27,8 @@ def _short_from_annotation(s: str | None) -> str:
     return s
 
 
-# async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
-async def send_schedule_keyboard(message: Message, *, limit: int = 5, include_nearest: bool = True, tg_id: int | None = None) -> None:
-
+async def send_schedule_keyboard(message, *, limit: int = 5, include_nearest: bool = True,
+                                 tg_id: int | None = None) -> None:
     sessions = await get_upcoming_sessions(limit=limit, tg_id=tg_id)
 
     try:
