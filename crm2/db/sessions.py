@@ -4,46 +4,123 @@ import asyncio
 from typing import Optional, List, Dict
 from .core import get_db_connection
 import logging
+#  === начало патча ===
 
 def _detect_table_name(cur) -> Optional[str]:
+    # Ищем и таблицы, и представления; предпочитаем источники, где уже есть start_date/end_date
     cur.execute("""
         SELECT name FROM sqlite_master
-        WHERE type='table' AND name IN ('events','sessions','schedule')
+        WHERE type IN ('table','view')
+          AND name IN (
+            'events_ui','events_xlsx','v_upcoming_days','session_index',
+            'sessions','schedule','events'
+          )
         ORDER BY CASE name
-            WHEN 'events' THEN 1
-            WHEN 'sessions' THEN 2
-            WHEN 'schedule' THEN 3
+            WHEN 'events_ui'         THEN 1
+            WHEN 'events_xlsx'       THEN 2
+            WHEN 'v_upcoming_days'   THEN 3
+            WHEN 'session_index'     THEN 4
+            WHEN 'sessions'          THEN 5
+            WHEN 'schedule'          THEN 6
+            WHEN 'events'            THEN 7
             ELSE 99 END
         LIMIT 1
     """)
     row = cur.fetchone()
     return row["name"] if row else None
 
+
 def _select_upcoming_sql(table: str) -> str:
-    # Поддерживаем ISO 'YYYY-MM-DD' и 'YYYY-MM-DD HH:MM:SS'
-    # Сравнение по DATE() в UTC (SQLite date('now')), для локали можно заменить на date('now','localtime')
-    return f"""
-        SELECT id, start_date, end_date,
-               COALESCE(topic_code, '') AS topic_code,
-               COALESCE(title, '')      AS title,
-               COALESCE(annotation, '') AS annotation
-        FROM {table}
-        WHERE DATE(start_date) >= DATE('now')
-        ORDER BY DATE(start_date) ASC
-        LIMIT ?
-    """
+    # Источники, где уже есть start_date/end_date
+    if table in ("events_ui", "events_xlsx", "v_upcoming_days", "session_index", "sessions", "schedule"):
+        return f"""
+            SELECT id, start_date, end_date,
+                   COALESCE(topic_code, '') AS topic_code,
+                   COALESCE(title, '')      AS title,
+                   COALESCE(annotation, '') AS annotation
+            FROM {table}
+            WHERE DATE(start_date) >= DATE('now')
+            ORDER BY DATE(start_date) ASC
+            LIMIT ?
+        """
+    # Таблица events: есть только date → делаем алиасы
+    if table == "events":
+        return """
+            SELECT id, start_date, end_date,
+                   '' AS topic_code,
+                   COALESCE(title,'') AS title,
+                   '' AS annotation
+            FROM (
+                SELECT
+                  id,
+                  CASE
+                    WHEN date LIKE '__.__.____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    WHEN date LIKE '__-__-____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    ELSE substr(date,1,10)
+                  END AS start_date,
+                  CASE
+                    WHEN date LIKE '__.__.____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    WHEN date LIKE '__-__-____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    ELSE substr(date,1,10)
+                  END AS end_date,
+                  title
+                FROM events
+            )
+            WHERE DATE(start_date) >= DATE('now')
+            ORDER BY DATE(start_date) ASC
+            LIMIT ?
+        """
+    raise ValueError(f"Unknown schedule source: {table}")
+
 
 def _select_by_id_sql(table: str) -> str:
-    return f"""
-        SELECT id, start_date, end_date,
-               COALESCE(topic_code, '') AS topic_code,
-               COALESCE(title, '')      AS title,
-               COALESCE(annotation, '') AS annotation
-        FROM {table}
-        WHERE id = ?
-        LIMIT 1
-    """
+    if table in ("events_ui", "events_xlsx", "v_upcoming_days", "session_index", "sessions", "schedule"):
+        return f"""
+            SELECT id, start_date, end_date,
+                   COALESCE(topic_code, '') AS topic_code,
+                   COALESCE(title, '')      AS title,
+                   COALESCE(annotation, '') AS annotation
+            FROM {table}
+            WHERE id = ?
+            LIMIT 1
+        """
+    if table == "events":
+        return """
+            SELECT id, start_date, end_date,
+                   '' AS topic_code,
+                   COALESCE(title,'') AS title,
+                   '' AS annotation
+            FROM (
+                SELECT
+                  id,
+                  CASE
+                    WHEN date LIKE '__.__.____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    WHEN date LIKE '__-__-____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    ELSE substr(date,1,10)
+                  END AS start_date,
+                  CASE
+                    WHEN date LIKE '__.__.____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    WHEN date LIKE '__-__-____'
+                      THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
+                    ELSE substr(date,1,10)
+                  END AS end_date,
+                  title
+                FROM events
+            )
+            WHERE id = ?
+            LIMIT 1
+        """
+    raise ValueError(f"Unknown schedule source: {table}")
 
+
+# === конец патча ===
 async def get_upcoming_sessions(limit: int = 5) -> List[Dict]:
     def _q():
         con = get_db_connection()
