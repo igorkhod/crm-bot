@@ -27,7 +27,8 @@ def _short_from_annotation(s: str | None) -> str:
     return s
 
 
-async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
+# async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
+async def send_schedule_keyboard(message: Message, *, limit: int = 5, include_nearest: bool = True) -> None:
     try:
         sessions = await get_upcoming_sessions(limit=limit)
     except Exception:
@@ -39,23 +40,25 @@ async def send_schedule_keyboard(message: Message, *, limit: int = 5) -> None:
         await message.answer("Ближайших занятий пока нет.")
         return
 
-    # --- 1) Кнопка "Ближайшее занятие" ---
-    first = sessions[0]
-    first_text = f"{format_range(first['start_date'], first['end_date'])} • {first.get('topic_code') or '—'}"
-    nearest_kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=first_text, callback_data=f"session:{first['id']}")]
-        ]
-    )
-    await message.answer("Ближайшее занятие:", reply_markup=nearest_kb)
+    # 1) Кнопка "Ближайшее занятие" — только при первом показе
+    if include_nearest:
+        first = sessions[0]
+        first_text = f"{format_range(first['start_date'], first['end_date'])} • {first.get('topic_code') or '—'}"
+        nearest_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text=first_text, callback_data=f"session:{first['id']}")]]
+        )
+        await message.answer("Ближайшее занятие:", reply_markup=nearest_kb)
+        rest = sessions[1:]
+    else:
+        rest = sessions
 
-    # --- 2) Остальные даты (без дублирования ближайшей) ---
-    rest = sessions[1:]
+    # 2) Остальные даты (если есть)
     if rest:
         await message.answer(
             "Выберите дату занятия:",
             reply_markup=build_schedule_keyboard(rest),
         )
+
 
 
 @schedule_router.callback_query(lambda c: c.data and c.data.startswith("session:"))
