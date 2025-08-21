@@ -48,9 +48,21 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
 dp.include_router(start.router)
+from crm2.handlers_schedule import schedule_router
+dp.include_router(schedule_router)
+
 dp.include_router(registration.router)
+from crm2.handlers_schedule import schedule_router
+dp.include_router(schedule_router)
+
 dp.include_router(auth.router)  # <— новое
+from crm2.handlers_schedule import schedule_router
+dp.include_router(schedule_router)
+
 dp.include_router(info.router)  # ← подключение
+from crm2.handlers_schedule import schedule_router
+dp.include_router(schedule_router)
+
 dp.include_router(schedule_router)
 
 @dp.message(F.text == "/start")
@@ -83,6 +95,25 @@ async def cmd_home(message: Message):
 
 async def main() -> None:
     # мягкий запуск: сообщаем админу (если указан)
+    #  стартовый логгинг
+    import os, logging, hashlib, inspect
+
+    try:
+        import crm2.handlers_schedule as hs
+        hs_path = inspect.getfile(hs)
+        with open(hs_path, "rb") as f:
+            hs_sha = hashlib.sha1(f.read()).hexdigest()[:10]
+    except Exception:
+        hs_path = "<unknown>"
+        hs_sha = "<na>"
+
+    logging.warning("[BUILD] COMMIT=%s  BRANCH=%s",
+                    os.getenv("RENDER_GIT_COMMIT", "<local>"),
+                    os.getenv("RENDER_GIT_BRANCH", "<local>"))
+    logging.warning("[DIAG] handlers_schedule=%s sha=%s", hs_path, hs_sha)
+
+    # === конец стартового логгинга
+
     if ADMIN_ID:
         try:
             await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен и готов к работе!")
