@@ -11,8 +11,7 @@ def guest_start_kb() -> ReplyKeyboardMarkup:
 
 def role_kb(role: str) -> ReplyKeyboardMarkup:
     rows = [
-        [KeyboardButton(text="ℹ️ Информация")],
-        [KeyboardButton(text="🏠 Меню")],
+        [KeyboardButton(text="ℹ️ Информация"), KeyboardButton(text="🏠 Меню")],
     ]
     if (role or "").lower() == "admin":
         rows.insert(0, [KeyboardButton(text="🛠 Панель администратора")])

@@ -31,9 +31,7 @@ async def cmd_start(message: Message):
     if role is None:  # новичок, не зарегистрирован
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="🆕 Зарегистрироваться")],
-                [KeyboardButton(text="🔑 Войти")],
-                [KeyboardButton(text="ℹ️ Информация")]
+                [KeyboardButton(text="🆕 Зарегистрироваться"), KeyboardButton(text="🔑 Войти"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
@@ -42,9 +40,7 @@ async def cmd_start(message: Message):
     elif role == "user":
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="📅 Расписание")],
-                [KeyboardButton(text="📚 Материалы")],
-                [KeyboardButton(text="ℹ️ Информация")]
+                [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )

@@ -31,8 +31,7 @@ def build_main_menu(role: str) -> ReplyKeyboardMarkup:
       • для остальных ролей: без админки
     """
     rows = [
-        [KeyboardButton(text="ℹ️ Информация")],
-        [KeyboardButton(text="🏠 Меню")],
+        [KeyboardButton(text="ℹ️ Информация"), KeyboardButton(text="🏠 Меню")],
     ]
     if (role or "").lower() == "admin":
         rows.insert(0, [KeyboardButton(text="🛠 Панель администратора")])
