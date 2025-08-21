@@ -1,3 +1,7 @@
+# === Файл: crm2/handlers/auth.py
+# Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование. Внутри классы: LoginFSM, функции: build_main_menu, get_db, fetch_user_by_nickname, touch_last_seen, attach_telegram_if_empty....
+# Добавлено автоматически 2025-08-21 05:43:17
+
 # crm2/handlers/auth.py
 import logging  # если не импортирован вверху
 import sqlite3

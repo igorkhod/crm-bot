@@ -1,8 +1,4 @@
-# === Файл: crm2/handlers/registration.py
-# Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram.
-# Добавлено автоматически 2025-08-21 05:43:17
-
-﻿# crm2/handlers/registration.py
+# crm2/handlers/registration.py
 # -*- coding: utf-8 -*-
 # ---------------------------------------------------------------------------
 #  МОДУЛЬ: crm2/handlers/registration.py
@@ -40,7 +36,10 @@
 #    ФИО → ник → пароль → подтверждение → выбор потока (или «Без потока»).
 #    Ник уникален; запись в БД происходит только в финале (UPDATE по telegram_id).
 #
-#    DEBUG_MODE = False (только для ADMIN_TG_ID) включает кнопку
+#  ОТЛАДКА:
+#    DEBUG_MODE=True (только для ADMIN_TG_ID) включает кнопку
+#    «Отладка: ввести Telegram ID» — позволяет регистрировать тестовых пользователей
+#    с подменой telegram_id. В бою выключить и удалить хэндлеры отладки.
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -62,8 +61,10 @@ from passlib.hash import bcrypt
 from crm2.db.sqlite import DB_PATH
 
 router = Router()
+
+# =============================== Отладка ===============================
 # ⚠️ В бою ОБЯЗАТЕЛЬНО: DEBUG_MODE = False и удалить «debug_*» хэндлеры.
-DEBUG_MODE = False
+DEBUG_MODE = True
 ADMIN_TG_ID = 448124106
 # ======================================================================
 
@@ -127,6 +128,8 @@ def resolve_telegram_id(message: Message, data: dict) -> int:
 @router.message(Command("register"))
 async def start_registration(message: Message, state: FSMContext):
     await state.clear()
+
+    # Если юзер уже есть — не пускаем регистрироваться повторно (кроме отладки)
     already = get_user_by_tg_id(message.from_user.id)
     if already and not DEBUG_MODE:
         kb = ReplyKeyboardMarkup(
@@ -239,33 +242,18 @@ async def reg_cohort(message: Message, state: FSMContext):
     # здесь мы обновляем её финальными полями и ролью 'user'
     with get_db_connection() as conn:
         cur = conn.cursor()
-# === начало блока
-        password_hash = bcrypt.hash(data["password"])
-
-        # сначала пробуем обновить
         cur.execute(
             """
             UPDATE users
-            SET full_name = ?,
-                nickname  = ?,
-                password  = ?,
-                cohort_id = ?
+            SET full_name     = ?,
+                nickname      = ?,
+                password_hash = ?,
+                role          = 'user',
+                cohort_id     = ?
             WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
         )
-
-        # если не зацепили ни одной строки — создаём новую
-        if cur.rowcount == 0:
-            cur.execute(
-                """
-                INSERT INTO users (telegram_id, username, nickname, password, full_name, role, cohort_id)
-                VALUES (?, ?, ?, ?, ?, 'user', ?)
-                """,
-                (tg_id, data["nickname"], data["nickname"], password_hash, data["full_name"], cohort_id),
-            )
-
-        # === конец блока
         conn.commit()
     await state.clear()
     text = (
@@ -291,5 +279,3 @@ async def cancel(message: Message, state: FSMContext):
         "Регистрация отменена. Нажмите /start, чтобы начать заново.",
         reply_markup=ReplyKeyboardRemove(),
     )
-
-

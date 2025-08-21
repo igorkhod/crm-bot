@@ -1,3 +1,7 @@
+# === Файл: crm2/keyboards.py
+# Аннотация: модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: guest_kb, role_kb, guest_start_kb.
+# Добавлено автоматически 2025-08-21 05:43:17
+
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def guest_kb() -> ReplyKeyboardMarkup:

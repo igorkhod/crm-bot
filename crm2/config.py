@@ -1,3 +1,7 @@
+# === Файл: crm2/config.py
+# Аннотация: модуль CRM, настройки/конфигурация, загрузка конфигурации из .env. Внутри классы: Settings, функции: get_settings.
+# Добавлено автоматически 2025-08-21 05:43:17
+
 # crm2/config.py
 from __future__ import annotations
 import os

@@ -1,3 +1,7 @@
+# === Файл: crm2/services/users.py
+# Аннотация: модуль CRM, доступ к SQLite/ORM. Внутри функции: _now_iso, ensure_user, classify_role, set_role, get_user_by_telegram.
+# Добавлено автоматически 2025-08-21 05:43:17
+
 from datetime import datetime
 from typing import Dict, Any
 import sqlite3

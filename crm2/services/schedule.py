@@ -1,3 +1,7 @@
+# === Файл: crm2/services/schedule.py
+# Аннотация: модуль CRM, расписание и события. Внутри классы: Session, функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file....
+# Добавлено автоматически 2025-08-21 05:43:17
+
 # crm2/services/schedule.py
 """
 Загрузка расписаний из .xlsx для потоков и форматирование выдачи.
