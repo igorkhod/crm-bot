@@ -7,7 +7,6 @@ from html import escape
 from aiogram import Router, F  # ← БЫЛО: from aiogram import Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from __future__ import annotations
 from crm2.db import get_upcoming_sessions, get_session_by_id
 from crm2.keyboards import build_schedule_keyboard, format_range
 
