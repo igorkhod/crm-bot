@@ -1,9 +1,9 @@
+# crm2/handlers/registration.py
+# -*- coding: utf-8 -*-
+#
 # === Файл: crm2/handlers/registration.py
 # Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram.
 # Добавлено автоматически 2025-08-21 05:43:17
-
-﻿# crm2/handlers/registration.py
-# -*- coding: utf-8 -*-
 # ---------------------------------------------------------------------------
 #  МОДУЛЬ: crm2/handlers/registration.py
 #  НАЗНАЧЕНИЕ:

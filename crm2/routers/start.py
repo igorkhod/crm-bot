@@ -1,3 +1,4 @@
+#
 # === Файл: crm2/routers/start.py
 # Аннотация: модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: get_user_role, cmd_start.
 # Добавлено автоматически 2025-08-21 05:43:17
