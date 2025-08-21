@@ -13,7 +13,6 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from crm2.keyboards import role_kb
-from crm2.services.schedule import next_training_text_for_user  # ← импорт наверху файла
 from crm2.db.sqlite import DB_PATH
 
 
@@ -161,9 +160,10 @@ async def login_password(message: Message, state: FSMContext):
         f"✅ Вход выполнен.\nВы вошли как: {user.get('full_name') or nickname}\nРоль: {role}",
         reply_markup=role_kb(role)
     )
+    from crm2.handlers_schedule import send_schedule_keyboard
+    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
+    await send_schedule_keyboard(message, limit=5)
 
-
-
-    txt = next_training_text_for_user(message.from_user.id)
-    if txt:
-        await message.answer(txt)
+    # txt = next_training_text_for_user(message.from_user.id)
+    # if txt:
+    #     await message.answer(txt)

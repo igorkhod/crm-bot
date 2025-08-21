@@ -20,7 +20,7 @@ from crm2.handlers import registration
 from crm2.keyboards import guest_start_kb, role_kb
 from crm2.routers import start
 from crm2.handlers import info  # ← импорт
-
+from crm2.handlers_schedule import schedule_router
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -51,7 +51,7 @@ dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)  # <— новое
 dp.include_router(info.router)  # ← подключение
-
+dp.include_router(schedule_router)
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
@@ -75,7 +75,10 @@ async def cmd_home(message: Message):
             f"Ваш кабинет. Роль: {role}",
             reply_markup=role_kb(role),
         )
-
+    # добавить ниже:
+    from crm2.handlers_schedule import send_schedule_keyboard
+    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
+    await send_schedule_keyboard(message, limit=5)
 
 
 async def main() -> None:
