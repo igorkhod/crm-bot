@@ -14,9 +14,7 @@ def role_kb(role: str) -> ReplyKeyboardMarkup:
         return guest_kb()
     if role in ("user","long_user"):
         rows = [
-            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы")],
-            [KeyboardButton(text="ℹ️ Профиль")],
-            [KeyboardButton(text="↩️ Выйти в меню")],
+            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="ℹ️ Профиль"), KeyboardButton(text="↩️ Выйти в меню")],
         ]
         return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
     if role == "advanced_user":
