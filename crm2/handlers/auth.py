@@ -32,20 +32,41 @@ class LoginSG(StatesGroup):
 def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
     """
     Возвращает dict с данными пользователя по паре (nickname, password)
-    или None, если не найден.
+    или None, если не найден. Имя колонки с паролем определяется по схеме БД.
     """
+    nickname = (nickname or "").strip()
+    password = (password or "").strip()
+    if not nickname or not password:
+        return None
+
     with get_db_connection() as con:
+        # удобный row_factory -> dict
         con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
-        cur = con.execute(
-            """
+
+        # выясняем имена колонок
+        cols = {
+            r[1]  # name
+            for r in con.execute("PRAGMA table_info('users')").fetchall()
+        }
+        # колонка с ником
+        name_col = next((c for c in ("nickname", "login", "username") if c in cols), None)
+        if not name_col:
+            return None  # в таблице нет поля ника — пусть отвалится как «не найден»
+
+        # колонка с паролем
+        pwd_col = next((c for c in ("password", "pass", "pwd", "passwd", "secret") if c in cols), None)
+        if not pwd_col:
+            return None  # нет колонки пароля — считаем, что авторизация не пройдена
+
+        # сам запрос: ник без учёта регистра, пароль — точное совпадение
+        sql = f"""
             SELECT *
             FROM users
-            WHERE nickname = ? AND password = ?
+            WHERE {name_col} = ? COLLATE NOCASE
+              AND {pwd_col} = ?
             LIMIT 1
-            """,
-            (nickname, password),
-        )
-        row = cur.fetchone()
+        """
+        row = con.execute(sql, (nickname, password)).fetchone()
         return row
 
 
