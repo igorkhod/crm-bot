@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
+
 from .core import get_db_connection
 
 
@@ -18,17 +20,17 @@ def get_user_stream_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str
             """
             SELECT p.stream_id AS sid, s.title AS stitle
             FROM users u
-            JOIN participants p ON p.user_id = u.id
-            JOIN streams s      ON s.id = p.stream_id
+                     JOIN participants p ON p.user_id = u.id
+                     JOIN streams s ON s.id = p.stream_id
             WHERE u.telegram_id = ?
-            ORDER BY p.id ASC
-            LIMIT 1
+            ORDER BY p.id ASC LIMIT 1
             """,
             (tg_id,),
         ).fetchone()
         if not row:
             return None, None
         return row["sid"], row["stitle"]
+
 
 def get_upcoming_sessions(*, limit: int = 5, tg_id: int | None = None) -> List[Dict[str, Any]]:
     """
@@ -45,15 +47,15 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: int | None = None) -> List[D
         # 1) определяем stream_id пользователя (participants > users.cohort_id)
         sid_row = con.execute(
             """
-            WITH usr AS (
-              SELECT u.id AS uid, COALESCE(p.stream_id, u.cohort_id) AS sid
-              FROM users u
-              LEFT JOIN participants p ON p.user_id = u.id
-              WHERE u.telegram_id = ?
-              ORDER BY p.id DESC
-              LIMIT 1
-            )
-            SELECT sid FROM usr
+            WITH usr AS (SELECT u.id AS uid, COALESCE(p.stream_id, u.cohort_id) AS sid
+                         FROM users u
+                                  LEFT JOIN participants p ON p.user_id = u.id
+                         WHERE u.telegram_id = ?
+                         ORDER BY p.id DESC
+                LIMIT 1
+                )
+            SELECT sid
+            FROM usr
             """,
             (tg_id,),
         ).fetchone()
@@ -63,16 +65,12 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: int | None = None) -> List[D
             rows = con.execute(
                 """
                 SELECT
-                    date        AS start_date,
-                    date        AS end_date,
-                    title       AS title,
-                    NULL        AS topic_code,
-                    COALESCE(annotation, '') AS annotation
+                    date AS start_date, date AS end_date, title AS title, NULL AS topic_code, COALESCE (annotation, '') AS annotation
                 FROM events
                 WHERE stream_id = ?
-                  AND date(date) >= date('now')
+                  AND date (date) >= date ('now')
                 ORDER BY date
-                LIMIT ?
+                    LIMIT ?
                 """,
                 (stream_id, limit),
             ).fetchall()
@@ -82,15 +80,11 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: int | None = None) -> List[D
         rows = con.execute(
             """
             SELECT
-                date        AS start_date,
-                date        AS end_date,
-                title       AS title,
-                NULL        AS topic_code,
-                COALESCE(annotation, '') AS annotation
+                date AS start_date, date AS end_date, title AS title, NULL AS topic_code, COALESCE (annotation, '') AS annotation
             FROM events
-            WHERE date(date) >= date('now')
+            WHERE date (date) >= date ('now')
             ORDER BY date
-            LIMIT ?
+                LIMIT ?
             """,
             (limit,),
         ).fetchall()
@@ -108,12 +102,6 @@ def get_session_by_id(session_id: int) -> Optional[Dict]:
         return dict(row) if row else None
 
 
-# crm2/db/sessions.py
-from __future__ import annotations
-import sqlite3
-from typing import Optional, List, Dict
-from .core import get_db_connection
-
 def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[int]:
     """
     Возвращает stream_id пользователя:
@@ -121,18 +109,18 @@ def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[int]:
     - если нет — берём users.cohort_id
     """
     row = conn.execute("""
-        WITH usr AS (
-          SELECT u.id   AS uid,
-                 COALESCE(p.stream_id, u.cohort_id) AS sid,
-                 p.id   AS pid
-          FROM users u
-          LEFT JOIN participants p ON p.user_id = u.id
-          WHERE u.telegram_id = ?
-          ORDER BY p.id DESC
-          LIMIT 1
-        )
-        SELECT sid FROM usr
-    """, (tg_id,)).fetchone()
+                       WITH usr AS (SELECT u.id                               AS uid,
+                                           COALESCE(p.stream_id, u.cohort_id) AS sid,
+                                           p.id                               AS pid
+                                    FROM users u
+                                             LEFT JOIN participants p ON p.user_id = u.id
+                                    WHERE u.telegram_id = ?
+                                    ORDER BY p.id DESC
+                           LIMIT 1
+                           )
+                       SELECT sid
+                       FROM usr
+                       """, (tg_id,)).fetchone()
     return row[0] if row and row[0] is not None else None
 
 
@@ -145,28 +133,20 @@ def get_upcoming_sessions(limit: int = 10, tg_id: Optional[int] = None) -> List[
         stream_id = get_user_stream(con, tg_id) if tg_id else None
         if stream_id:
             rows = con.execute("""
-                SELECT id,
-                       date AS start_date,
-                       date AS end_date,
-                       title,
-                       ''   AS annotation
-                FROM events
-                WHERE stream_id = ?
-                  AND date(date) >= date('now')
-                ORDER BY date
-                LIMIT ?
-            """, (stream_id, limit)).fetchall()
+                               SELECT id, date AS start_date, date AS end_date, title, '' AS annotation
+                               FROM events
+                               WHERE stream_id = ?
+                                 AND date (date) >= date ('now')
+                               ORDER BY date
+                                   LIMIT ?
+                               """, (stream_id, limit)).fetchall()
         else:
             rows = con.execute("""
-                SELECT id,
-                       date AS start_date,
-                       date AS end_date,
-                       title,
-                       ''   AS annotation
-                FROM events
-                WHERE date(date) >= date('now')
-                ORDER BY date
-                LIMIT ?
-            """, (limit,)).fetchall()
+                               SELECT id, date AS start_date, date AS end_date, title, '' AS annotation
+                               FROM events
+                               WHERE date (date) >= date ('now')
+                               ORDER BY date
+                                   LIMIT ?
+                               """, (limit,)).fetchall()
 
         return [dict(r) for r in rows]
