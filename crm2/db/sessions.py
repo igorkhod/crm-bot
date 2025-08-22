@@ -79,50 +79,70 @@ def _detect_table_name(cur: sqlite3.Cursor) -> Optional[str]:
 
 
 def _select_upcoming_sql(table: str) -> str:
-    """SQL для списка ближайших сессий для разных источников."""
-    if table in ("events_ui", "events_xlsx", "v_upcoming_days", "session_index", "sessions", "schedule"):
+    """
+    Возвращает SQL для получения ближайших занятий.
+    В запросах оставлен плейсхолдер /*EXTRA*/ — сюда мы подставляем
+    фильтр по потоку/файлу, если он нужен.
+    """
+    common_cols = """
+        id,
+        start_date,
+        end_date,
+        COALESCE(topic_code, '') AS topic_code,
+        COALESCE(title, '')      AS title,
+        COALESCE(annotation, '') AS annotation
+    """
+
+    if table in ("events_xlsx", "events_ui", "v_upcoming_days", "session_index", "sessions", "schedule"):
         return f"""
-            SELECT id, start_date, end_date,
-                   COALESCE(topic_code, '') AS topic_code,
-                   COALESCE(title, '')      AS title,
-                   COALESCE(annotation, '') AS annotation
+            SELECT {common_cols}
             FROM {table}
             WHERE DATE(start_date) >= DATE('now')
+            /*EXTRA*/
             ORDER BY DATE(start_date) ASC
             LIMIT ?
         """
-    if table == "events":
-        # В events только date: нормализуем в start/end
-        return """
-            SELECT id, start_date, end_date,
-                   ''                  AS topic_code,
-                   COALESCE(title, '') AS title,
-                   ''                  AS annotation
-            FROM (
-                SELECT id,
-                       CASE
-                         WHEN date LIKE '__.__.____'
-                           THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
-                         WHEN date LIKE '__-__-____'
-                           THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
-                         ELSE substr(date,1,10)
-                       END AS start_date,
-                       CASE
-                         WHEN date LIKE '__.__.____'
-                           THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
-                         WHEN date LIKE '__-__-____'
-                           THEN substr(date,7,4)||'-'||substr(date,4,2)||'-'||substr(date,1,2)
-                         ELSE substr(date,1,10)
-                       END AS end_date,
-                       title
-                FROM events
-            )
-            WHERE DATE(start_date) >= DATE('now')
-            ORDER BY DATE(start_date) ASC
-            LIMIT ?
-        """
-    raise ValueError(f"Unknown schedule source: {table}")
 
+    if table == "events":
+        # В events есть только поле date (и опционально stream_id).
+        # Нормализуем date -> start_date/end_date. Протащим stream_id наружу,
+        # чтобы можно было фильтровать по потоку.
+        return """
+            SELECT
+                id,
+                start_date,
+                end_date,
+                ''                  AS topic_code,
+                COALESCE(title, '') AS title,
+                ''                  AS annotation
+            FROM (
+                SELECT
+                    id,
+                    CASE
+                        WHEN date LIKE '__.__.____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        WHEN date LIKE '__-__-____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        ELSE substr(date,1,10)
+                    END AS start_date,
+                    CASE
+                        WHEN date LIKE '__.__.____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        WHEN date LIKE '__-__-____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        ELSE substr(date,1,10)
+                    END AS end_date,
+                    title,
+                    stream_id
+                FROM events
+            ) AS e
+            WHERE DATE(start_date) >= DATE('now')
+            /*EXTRA*/
+            ORDER BY DATE(start_date) ASC
+            LIMIT ?
+        """
+
+    raise ValueError(f"Unknown schedule source: {table}")
 
 def _select_by_id_sql(table: str) -> str:
     if table in ("events_ui", "events_xlsx", "v_upcoming_days", "session_index", "sessions", "schedule"):
@@ -177,6 +197,7 @@ async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
             cur = con.cursor()
 
             table = _detect_table_name(cur)
+            # вставить блок после detect_table_name
             if not table:
                 return []
 
@@ -223,6 +244,124 @@ async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
     return await asyncio.to_thread(_q)
 
 
+def _select_upcoming_sql(table: str) -> str:
+    """
+    Возвращает SQL для получения ближайших занятий.
+    В запросах оставлен плейсхолдер /*EXTRA*/ — сюда подставляем
+    фильтр по потоку/файлу, если он нужен.
+    """
+    common_cols = """
+        id,
+        start_date,
+        end_date,
+        COALESCE(topic_code, '') AS topic_code,
+        COALESCE(title, '')      AS title,
+        COALESCE(annotation, '') AS annotation
+    """
+
+    if table in ("events_xlsx", "events_ui", "v_upcoming_days", "session_index", "sessions", "schedule"):
+        return f"""
+            SELECT {common_cols}
+            FROM {table}
+            WHERE DATE(start_date) >= DATE('now')
+            /*EXTRA*/
+            ORDER BY DATE(start_date) ASC
+            LIMIT ?
+        """
+
+    if table == "events":
+        # В events есть только date (и опционально stream_id) — нормализуем в start/end.
+        return """
+            SELECT
+                id,
+                start_date,
+                end_date,
+                ''                  AS topic_code,
+                COALESCE(title, '') AS title,
+                ''                  AS annotation
+            FROM (
+                SELECT
+                    id,
+                    CASE
+                        WHEN date LIKE '__.__.____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        WHEN date LIKE '__-__-____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        ELSE substr(date,1,10)
+                    END AS start_date,
+                    CASE
+                        WHEN date LIKE '__.__.____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        WHEN date LIKE '__-__-____'
+                            THEN substr(date,7,4) || '-' || substr(date,4,2) || '-' || substr(date,1,2)
+                        ELSE substr(date,1,10)
+                    END AS end_date,
+                    title,
+                    stream_id
+                FROM events
+            ) AS e
+            WHERE DATE(start_date) >= DATE('now')
+            /*EXTRA*/
+            ORDER BY DATE(start_date) ASC
+            LIMIT ?
+        """
+
+    raise ValueError(f"Unknown schedule source: {table}")
+
+
+async def get_upcoming_sessions(limit: int = 5, tg_id: Optional[int] = None):
+    """
+    Возвращает список ближайших занятий.
+    Если передан tg_id — стараемся отфильтровать под поток пользователя:
+      - для источника events_xlsx — по имени файла: ..._<stream_id>_...
+      - для источника events — по колонке stream_id (если она есть).
+    """
+    def _q():
+        con = get_db_connection()
+        try:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+
+            table = _detect_table_name(cur)
+            if not table:
+                return []
+
+            # Определяем поток пользователя
+            stream_id: Optional[int] = None
+            like_mask: Optional[str] = None
+            if tg_id is not None:
+                info = get_user_stream_info_by_tg(tg_id)  # уже есть в файле
+                if info:
+                    stream_id = info["stream_id"]
+                    if stream_id:
+                        like_mask = f"%_{stream_id}_%"
+
+            sql = _select_upcoming_sql(table)
+            params: list = []
+
+            # Подставляем фильтр вместо /*EXTRA*/
+            extra = ""
+            if table == "events_xlsx" and like_mask:
+                extra = " AND source_file LIKE ?"
+                params.append(like_mask)
+            elif table == "events" and stream_id:
+                # Фильтр по stream_id — только если такая колонка реально существует
+                cur.execute("SELECT 1 FROM pragma_table_info('events') WHERE name='stream_id'")
+                if cur.fetchone():
+                    extra = " AND stream_id = ?"
+                    params.append(stream_id)
+
+            sql = sql.replace("/*EXTRA*/", extra)
+
+            params.append(limit)
+            cur.execute(sql, tuple(params))
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            con.close()
+
+    return await asyncio.to_thread(_q)
+
+# вставить блок до get_session_by_id.
 async def get_session_by_id(session_id: int) -> Optional[Dict]:
     """Детали занятия по id (из того же источника, что и список)."""
     def _q():

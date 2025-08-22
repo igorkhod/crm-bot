@@ -1,18 +1,65 @@
 from __future__ import annotations
 
 import logging
-import re                    # ← ДОБАВЬ
+import re  # ← ДОБАВЬ
 from html import escape
 
 from aiogram import Router, F  # ← БЫЛО: from aiogram import Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+
 from crm2.db import get_upcoming_sessions, get_session_by_id
-from crm2.keyboards import build_schedule_keyboard, format_range
+from crm2.keyboards import format_range
+
+import asyncio, sqlite3
+from typing import Optional, Dict
+from .core import get_db_connection
 
 logger = logging.getLogger(__name__)
 
 schedule_router = Router()
+
+def get_user_stream_info_by_tg(tg_id: int) -> Optional[dict]:
+    con = get_db_connection()
+    try:
+        con.row_factory = sqlite3.Row
+        row = con.execute(
+            """
+            SELECT s.id AS stream_id, s.*
+            FROM participants p
+            JOIN users u       ON u.id = p.user_id
+            LEFT JOIN streams s ON s.id = p.stream_id
+            WHERE u.telegram_id = ?
+            ORDER BY p.id DESC
+            LIMIT 1
+            """, (tg_id,)
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        stream_id = d.get("stream_id")
+        stream_code = d.get("code") or d.get("title") or d.get("name") or (str(stream_id) if stream_id else None)
+        return {"stream_id": stream_id, "stream_code": stream_code}
+    finally:
+        con.close()
+
+def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
+    info = get_user_stream_info_by_tg(tg_id)
+    return info["stream_code"] if info else None
+
+def _detect_table_name(cur: sqlite3.Cursor) -> Optional[str]:
+    cur.execute("""
+      SELECT name FROM sqlite_master
+      WHERE type IN ('table','view')
+        AND name IN ('events_xlsx','events_ui','v_upcoming_days','session_index','sessions','schedule','events')
+      ORDER BY CASE name
+         WHEN 'events_xlsx' THEN 1 WHEN 'events_ui' THEN 2 WHEN 'v_upcoming_days' THEN 3
+         WHEN 'session_index' THEN 4 WHEN 'sessions' THEN 5 WHEN 'schedule' THEN 6
+         WHEN 'events' THEN 7 ELSE 99 END
+      LIMIT 1
+    """)
+    r = cur.fetchone()
+    return r["name"] if r else None
 
 
 def _short_from_annotation(s: str | None) -> str:
@@ -27,37 +74,59 @@ def _short_from_annotation(s: str | None) -> str:
     return s
 
 
-async def send_schedule_keyboard(message, *, limit: int = 5, include_nearest: bool = True,
-                                 tg_id: int | None = None) -> None:
+def _row_text(s: dict) -> str:
+    return f"{s['start_date']} — {s['end_date']} • {s.get('topic_code') or ''}".strip()
+
+
+async def send_schedule_keyboard(message: Message, limit: int = 5, tg_id: int | None = None):
     sessions = await get_upcoming_sessions(limit=limit, tg_id=tg_id)
-
-    try:
-        sessions = await get_upcoming_sessions(limit=limit)
-    except Exception:
-        logger.exception("send_schedule_keyboard failed")
-        await message.answer("Расписание временно недоступно. Попробуйте позже.")
-        return
-
     if not sessions:
         await message.answer("Ближайших занятий пока нет.")
         return
 
-    if include_nearest:
-        first = sessions[0]
-        first_text = f"{format_range(first['start_date'], first['end_date'])} • {first.get('topic_code') or '—'}"
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text=first_text, callback_data=f"nearest:{first['id']}")]]
-        )
-        await message.answer("Ближайшее занятие:", reply_markup=kb)
-        rest = sessions[1:]
-    else:
-        rest = sessions
+    # 1) Отдельно — ближайшее
+    first = sessions[0]
+    nearest_kb = InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text=_row_text(first),
+                callback_data=f"session:{first['id']}"
+            )
+        ]]
+    )
+    await message.answer("Ближайшее занятие:", reply_markup=nearest_kb)
 
-    if rest:
-        await message.answer(
-            "Выберите дату занятия:",
-            reply_markup=build_schedule_keyboard(rest),
-        )
+    # 2) Остальные (без дублирования первой)
+    tail = sessions[1:]
+    if not tail:
+        return
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=_row_text(s), callback_data=f"session:{s['id']}")]
+            for s in tail
+        ]
+    )
+    await message.answer("Выберите дату занятия:", reply_markup=kb)
+
+
+@schedule_router.callback_query(F.data.startswith("session:"))
+async def on_session_click(callback: CallbackQuery):
+    sid = int(callback.data.split(":", 1)[1])
+    s = await get_session_by_id(sid)
+    if not s:
+        await callback.answer("Не удалось найти занятие", show_alert=True)
+        return
+
+    header = f"{s['start_date']} — {s['end_date']} • {s.get('topic_code') or ''}".strip()
+    title = s.get("title") or "—"
+    annotation = s.get("annotation") or "—"
+    text = (
+        f"<b>{header}</b>\n\n"
+        f"<b>Тема:</b> {title}\n"
+        f"<b>Краткое описание:</b> {annotation}"
+    )
+    await callback.message.answer(text)
+    await callback.answer()
 
 
 async def _render_session_card(callback: CallbackQuery, s: dict, *, show_rest: bool) -> None:
@@ -85,6 +154,8 @@ async def _render_session_card(callback: CallbackQuery, s: dict, *, show_rest: b
 
     await callback.answer()
 
+
+#
 
 # @schedule_router.callback_query(lambda c: c.data and c.data.startswith("nearest:"))
 @schedule_router.callback_query(F.data.startswith("nearest:"))
@@ -123,4 +194,3 @@ async def on_unknown_callback(callback: CallbackQuery) -> None:
     # Если это не наше — просто ответим ничем и дадим шанс другим роутерам
     logger.warning("Unknown callback (schedule router): %r", callback.data)
     await callback.answer()
-
