@@ -182,7 +182,7 @@ async def login_password(message: Message, state: FSMContext) -> None:
         f"Роль: {role}"
     )
     if stream_title:
-        text += f"\nПоток: {stream_title}"
+        text += f" Поток: {stream_title}"
 
     await message.answer(text, reply_markup=role_kb(role))
     await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
