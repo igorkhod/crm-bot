@@ -58,6 +58,7 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 from passlib.hash import bcrypt
+from crm2.db.core import get_db_connection
 
 from crm2.db.sqlite import DB_PATH
 
@@ -81,9 +82,6 @@ class RegistrationFSM(StatesGroup):
 
 
 # ================== helpers ====================
-def get_db_connection() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH)
-
 
 def get_user_by_tg_id(tg_id: int) -> dict | None:
     with get_db_connection() as conn:

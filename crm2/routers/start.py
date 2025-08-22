@@ -7,7 +7,7 @@
 
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from crm2.db.sqlite import get_db_connection
+from crm2.db.core import get_db_connection
 
 router = Router()
 

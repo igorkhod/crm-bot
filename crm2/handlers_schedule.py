@@ -1,63 +1,39 @@
 from __future__ import annotations
 
-import logging
-import re  # ← ДОБАВЬ
+import logging, re  # ← ДОБАВЬ
+import sqlite3
 from html import escape
+from typing import Optional
 
 from aiogram import Router, F  # ← БЫЛО: from aiogram import Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
-from crm2.db import get_upcoming_sessions, get_session_by_id
+from crm2.db.sessions import get_upcoming_sessions, get_session_by_id
 from crm2.keyboards import format_range
-
-import asyncio, sqlite3
-from typing import Optional, Dict
-from .core import get_db_connection
 
 logger = logging.getLogger(__name__)
 
 schedule_router = Router()
 
-def get_user_stream_info_by_tg(tg_id: int) -> Optional[dict]:
-    con = get_db_connection()
-    try:
-        con.row_factory = sqlite3.Row
-        row = con.execute(
-            """
-            SELECT s.id AS stream_id, s.*
-            FROM participants p
-            JOIN users u       ON u.id = p.user_id
-            LEFT JOIN streams s ON s.id = p.stream_id
-            WHERE u.telegram_id = ?
-            ORDER BY p.id DESC
-            LIMIT 1
-            """, (tg_id,)
-        ).fetchone()
-        if not row:
-            return None
-        d = dict(row)
-        stream_id = d.get("stream_id")
-        stream_code = d.get("code") or d.get("title") or d.get("name") or (str(stream_id) if stream_id else None)
-        return {"stream_id": stream_id, "stream_code": stream_code}
-    finally:
-        con.close()
-
-def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
-    info = get_user_stream_info_by_tg(tg_id)
-    return info["stream_code"] if info else None
 
 def _detect_table_name(cur: sqlite3.Cursor) -> Optional[str]:
     cur.execute("""
-      SELECT name FROM sqlite_master
-      WHERE type IN ('table','view')
-        AND name IN ('events_xlsx','events_ui','v_upcoming_days','session_index','sessions','schedule','events')
-      ORDER BY CASE name
-         WHEN 'events_xlsx' THEN 1 WHEN 'events_ui' THEN 2 WHEN 'v_upcoming_days' THEN 3
-         WHEN 'session_index' THEN 4 WHEN 'sessions' THEN 5 WHEN 'schedule' THEN 6
-         WHEN 'events' THEN 7 ELSE 99 END
-      LIMIT 1
-    """)
+                SELECT name
+                FROM sqlite_master
+                WHERE type IN ('table', 'view')
+                  AND name IN
+                      ('events_xlsx', 'events_ui', 'v_upcoming_days', 'session_index', 'sessions', 'schedule', 'events')
+                ORDER BY CASE name
+                             WHEN 'events_xlsx' THEN 1
+                             WHEN 'events_ui' THEN 2
+                             WHEN 'v_upcoming_days' THEN 3
+                             WHEN 'session_index' THEN 4
+                             WHEN 'sessions' THEN 5
+                             WHEN 'schedule' THEN 6
+                             WHEN 'events' THEN 7
+                             ELSE 99 END LIMIT 1
+                """)
     r = cur.fetchone()
     return r["name"] if r else None
 

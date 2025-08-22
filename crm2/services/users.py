@@ -8,7 +8,7 @@ from typing import Dict, Any
 import sqlite3
 import aiosqlite
 from crm2.db.sqlite import DB_PATH
-from crm2.db.sqlite import get_db_connection
+from crm2.db.core import get_db_connection
 
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
