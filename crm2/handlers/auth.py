@@ -1,24 +1,9 @@
-# from __future__ import annotations
-#
-# import asyncio, re
-# import logging
-# from typing import Optional, Tuple
-#
-# from aiogram import F, Router
-# from aiogram.fsm.context import FSMContext
-# from aiogram.fsm.state import State, StatesGroup
-# from aiogram.types import Message
-#
-# from crm2.db.core import get_db_connection
-# from crm2.db.sessions import get_user_stream_title_by_tg
-# from crm2.handlers_schedule import send_schedule_keyboard
-# from crm2.keyboards import role_kb
-
 from __future__ import annotations
 
 import asyncio
 import logging
 import re
+import hmac
 import hashlib
 from typing import Optional
 
@@ -31,8 +16,6 @@ from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_user_stream_title_by_tg
 from crm2.handlers_schedule import send_schedule_keyboard
 from crm2.keyboards import role_kb
-
-
 
 router = Router(name="auth")
 
@@ -51,32 +34,26 @@ class LoginSG(StatesGroup):
 def _normalize(s: str) -> str:
     """
     Убираем невидимые пробелы/маркер BOM и стандартные пробелы по краям.
+    Схлопываем повторные пробелы.
     """
     if s is None:
         return ""
-    # NBSP, BOM, zero-width
-    s = s.replace("\u00A0", " ").replace("\uFEFF", "").replace("\u200B", "").replace("\u200C", "").replace("\u200D", "")
-    # схлопываем повторные пробелы
-    s = re.sub(r"\s+", " ", s)
-    return s.strip()
-#  отладочная функция
-def _normalize(s: str) -> str:
-    if s is None:
-        return ""
-    # убираем NBSP/BOM/Zero-Width и схлопываем пробелы
-    s = (s.replace("\u00A0", " ")
-           .replace("\uFEFF", "")
-           .replace("\u200B", "")
+    s = (s.replace("\u00A0", " ")   # NBSP
+           .replace("\uFEFF", "")   # BOM
+           .replace("\u200B", "")   # zero-width
            .replace("\u200C", "")
            .replace("\u200D", ""))
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
+
 def _to_hex_bytes(s: str) -> str:
     return (s or "").encode("utf-8", "replace").hex()
 
+
 def _sha256(s: str) -> str:
     return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
+
 
 def _debug_auth_dump(db_pw: str, in_pw: str, who: str = "users.password") -> None:
     """
@@ -100,11 +77,74 @@ def _debug_auth_dump(db_pw: str, in_pw: str, who: str = "users.password") -> Non
     except Exception:
         logging.exception("[AUTH DEBUG] dump failed")
 
-#  конец отладки
+
+# --- Поддержка bcrypt и fallback на обычную строку
+_BCRYPT_RE = re.compile(r"^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$")
+
+def _is_bcrypt(s: str) -> bool:
+    return bool(s) and bool(_BCRYPT_RE.match(s))
+
+def _check_password(db_pw: str, input_pw: str) -> bool:
+    """
+    Сравнивает введённый пароль с БД:
+      • если в БД bcrypt ($2b$…): bcrypt.checkpw()
+      • иначе — обычное сравнение после «очистки» (NBSP/BOM/zero-width)
+    """
+    raw_db = str(db_pw or "")
+    raw_in = str(input_pw or "")
+
+    if _is_bcrypt(raw_db):
+        try:
+            import bcrypt
+            return bcrypt.checkpw(raw_in.encode("utf-8"), raw_db.encode("utf-8"))
+        except Exception:
+            logging.exception("[AUTH] bcrypt check failed")
+            return False
+
+    a = _normalize(raw_db)
+    b = _normalize(raw_in)
+    try:
+        return hmac.compare_digest(a, b)
+    except Exception:
+        return a == b
+
+
+def _human_name(user_row: dict) -> str:
+    """
+    Аккуратно берём "человеческое" имя пользователя из доступных полей.
+    Fallback — nickname.
+    """
+    for key in ("full_name", "fio", "name"):
+        val = user_row.get(key)
+        if val:
+            return str(val)
+    return str(user_row.get("nickname", "—"))
+
+
+def _user_role(user_row: dict) -> str:
+    return str(user_row.get("role", "user"))
+
+
+def _bind_telegram_id(user_id: int, tg_id: int) -> None:
+    """
+    Привязываем telegram_id к пользователю, если ещё не привязан или отличается.
+    """
+    with get_db_connection() as con:
+        con.execute(
+            """
+            UPDATE users
+               SET telegram_id = ?
+             WHERE id = ?
+               AND (telegram_id IS NULL OR telegram_id <> ?)
+            """,
+            (tg_id, user_id, tg_id),
+        )
+        con.commit()
+
 
 def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
     """
-    Ищем пользователя по нику (регистронезависимо), пароль сверяем в Python.
+    Ищем пользователя по нику (регистронезависимо), пароль сверяем корректно (bcrypt/строка).
     Перед сравнением печатаем отладочную информацию: hex/sha256 сырых и нормализованных значений.
     """
     nn = _normalize(nickname)
@@ -119,7 +159,7 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
         if not name_col:
             return None
 
-        # работаем со словарями
+        # работать удобнее со словарями
         con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
 
         # берём пользователя по нику (без учёта регистра)
@@ -146,22 +186,7 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
         db_pw = str(user.get(pwd_field) or "")
         _debug_auth_dump(db_pw, password, who=f"users.{pwd_field}")
 
-        return user if _normalize(db_pw) == pw else None
-
-
-def _human_name(user_row: dict) -> str:
-    """
-    Аккуратно берём "человеческое" имя пользователя из доступных полей.
-    Fallback — nickname.
-    """
-    for key in ("full_name", "fio", "name"):
-        if key in user_row and user_row[key]:
-            return str(user_row[key])
-    return str(user_row.get("nickname", "—"))
-
-
-def _user_role(user_row: dict) -> str:
-    return str(user_row.get("role", "user"))
+        return user if _check_password(db_pw, password) else None
 
 
 # -----------------------
@@ -176,7 +201,7 @@ async def cmd_login(message: Message, state: FSMContext) -> None:
 
 @router.message(LoginSG.nickname)
 async def login_nickname(message: Message, state: FSMContext) -> None:
-    await state.update_data(nickname=message.text.strip())
+    await state.update_data(nickname=_normalize(message.text or ""))
     await state.set_state(LoginSG.password)
     await message.answer("Введите пароль:")
 
@@ -185,7 +210,7 @@ async def login_nickname(message: Message, state: FSMContext) -> None:
 async def login_password(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     nickname = str(data.get("nickname", "")).strip()
-    password = (message.text or "").strip()
+    password = _normalize(message.text or "")
 
     if not nickname or not password:
         await message.answer("Нужно ввести и никнейм, и пароль. Попробуйте ещё раз: /login")
@@ -199,11 +224,11 @@ async def login_password(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
 
-    # Привязываем Telegram ID
+    # Привязываем Telegram ID (мягко)
     tg_id = message.from_user.id
     try:
         await asyncio.to_thread(_bind_telegram_id, int(user["id"]), tg_id)
-    except Exception:  # pragma: no cover
+    except Exception:
         logging.exception("failed to bind telegram id")
 
     # Готовим приветствие
@@ -225,9 +250,7 @@ async def login_password(message: Message, state: FSMContext) -> None:
     await message.answer(text, reply_markup=role_kb(role))
 
     # Подсказка и расписание (ТОЛЬКО один раз)
-    await message.answer(
-        "Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание."
-    )
+    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
     # Важно: передаём tg_id, чтобы расписание было именно для потока пользователя
     await send_schedule_keyboard(message, limit=5, tg_id=tg_id)
 
