@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 from html import escape
 
 from aiogram import F, Router
@@ -26,7 +27,7 @@ async def send_schedule_keyboard(
     Даты берём с учётом потока (если передан tg_id).
     """
     try:
-        sessions = await get_upcoming_sessions(limit=limit, tg_id=tg_id)
+        sessions = await asyncio.to_thread(get_upcoming_sessions, limit=limit, tg_id=tg_id)
     except Exception:
         logging.exception("send_schedule_keyboard failed")
         await message.answer("Ближайших занятий пока нет.")
