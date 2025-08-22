@@ -19,49 +19,36 @@ def _row_text(s: dict) -> str:
     """Текст на кнопке: YYYY-MM-DD • Название темы."""
     return f"{s.get('date','')} • {s.get('title','')}".strip(" •")
 
-
 async def send_schedule_keyboard(message: Message, *, limit: int = 5, tg_id: int | None = None) -> None:
-    """Отправить блок с «Ближайшее занятие» + список следующих дат."""
-    sessions = await asyncio.to_thread(get_upcoming_sessions, limit=limit, tg_id=tg_id)
+    """
+    Рисуем блок:
+      - «Ближайшее занятие:» (первая запись, если есть)
+      - «Выберите дату занятия:» (кнопки по всем записям)
+    Никаких дублей. Заголовок = именно s['title'].
+    """
+    try:
+        sessions = sessions_db.get_upcoming_sessions(limit=limit, tg_id=tg_id)  # sync → внутри DB
+    except Exception as e:
+        logger.exception("send_schedule_keyboard failed")
+        await message.answer("Не удалось получить расписание. Попробуйте позже.")
+        return
 
     if not sessions:
         await message.answer("Ближайших занятий пока нет.")
         return
 
-    # 1) Отдельная кнопка «Ближайшее занятие»
-    nearest = sessions[0]
-    kb_nearest = InlineKeyboardBuilder()
-    kb_nearest.button(text=_row_text(nearest), callback_data=f"session:{nearest['id']}")
-    kb_nearest.adjust(1)
-    await message.answer("Ближайшее занятие:", reply_markup=kb_nearest.as_markup())
-
-    # 2) Кнопки остальных дат (без дубля ближайшей)
-    others = sessions[1:] if len(sessions) > 1 else []
-    if others:
-        kb = InlineKeyboardBuilder()
-        for s in others:
-            kb.button(text=_row_text(s), callback_data=f"session:{s['id']}")
-        kb.adjust(1)
-        await message.answer("Выберите дату занятия:", reply_markup=kb.as_markup())
-
-
-@schedule_router.callback_query(F.data.startswith("session:"))
-async def on_session_click(callback: CallbackQuery):
-    """Открыть тему/краткое описание по нажатию на кнопку даты."""
-    try:
-        sid = int(callback.data.split(":", 1)[1])
-    except Exception:
-        await callback.answer("Некорректный идентификатор.", show_alert=True)
-        return
-
-    s = await asyncio.to_thread(get_session_by_id, sid)
-    if not s:
-        await callback.answer("Занятие не найдено.", show_alert=True)
-        return
-
-    text = (
-        f"<b>{s['date']}</b>\n"
-        f"<b>Тема:</b> {s.get('title','—')}"
+    # 1) отдельным сообщением — «Ближайшее занятие»
+    first = sessions[0]
+    await message.answer(
+        f"<b>{first['start_date']}</b>\n<b>Тема:</b> {first.get('title','').strip()}",
+        parse_mode="HTML",
     )
-    await callback.message.answer(text, parse_mode="HTML")
-    await callback.answer()
+
+    # 2) ниже — клавиатура со всеми датами
+    kb = InlineKeyboardBuilder()
+    for s in sessions:
+        text = f"{s['start_date']} • {s.get('title','').strip() or 'Без темы'}"
+        kb.button(text=text, callback_data=f"sess:{s['start_date']}")
+
+    kb.adjust(1)
+    await message.answer("Выберите дату занятия:", reply_markup=kb.as_markup())
