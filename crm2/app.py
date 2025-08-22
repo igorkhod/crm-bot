@@ -22,6 +22,8 @@ from crm2.routers import start
 from crm2.handlers import info  # ← импорт
 from crm2.handlers_schedule import schedule_router
 # from crm2.config import TELEGRAM_TOKEN
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -45,7 +47,11 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
-bot = Bot(TELEGRAM_TOKEN, parse_mode="HTML")  # ← включаем HTML по умолчанию
+bot = Bot(
+    TELEGRAM_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+)
+
 dp = Dispatcher()
 
 dp.include_router(start.router)
