@@ -4,7 +4,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 def guest_start_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="📝 Регистрация")]
+            [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="📝 Регистрация"), KeyboardButton(text="📖 О проекте")],
         ],
         resize_keyboard=True
     )

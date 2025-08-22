@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+import asyncio, re
 import logging
 from typing import Optional, Tuple
 
@@ -29,39 +29,66 @@ class LoginSG(StatesGroup):
 # -----------------------
 # Вспомогательные функции
 # -----------------------
+def _normalize(s: str) -> str:
+    """
+    Убираем невидимые пробелы/маркер BOM и стандартные пробелы по краям.
+    """
+    if s is None:
+        return ""
+    # NBSP, BOM, zero-width
+    s = s.replace("\u00A0", " ").replace("\uFEFF", "").replace("\u200B", "").replace("\u200C", "").replace("\u200D", "")
+    # схлопываем повторные пробелы
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
+
 def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
     """
-    Возвращает dict с данными пользователя по паре (nickname, password)
-    или None, если не найден. Имя колонки с паролем определяется по схеме БД.
+    Ищем пользователя по нику (без учёта регистра), пароль сверяем после нормализации.
+    Делаем два шага:
+      1) обычный SELECT по нику COLLATE NOCASE;
+      2) если не нашли — пробегаем всех пользователей и сравниваем нормализованные никнеймы.
     """
-    nickname = (nickname or "").strip()
-    password = (password or "").strip()
-    if not nickname or not password:
+    nn = _normalize(nickname)
+    pw = _normalize(password)
+    if not nn or not pw:
         return None
 
     with get_db_connection() as con:
-        # 1) читаем имена столбцов без кастомной row_factory
+        # узнаём имя колонки ника
         cols = {row[1] for row in con.execute("PRAGMA table_info('users')").fetchall()}
-
         name_col = next((c for c in ("nickname", "login", "username") if c in cols), None)
         if not name_col:
             return None
 
-        pwd_col = next((c for c in ("password", "pass", "pwd", "passwd", "secret") if c in cols), None)
-        if not pwd_col:
-            return None
-
-        # 2) теперь включаем dict row_factory для удобного возврата
+        # хотим словари из SELECT
         con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
 
-        sql = f"""
-            SELECT *
-            FROM users
-            WHERE {name_col} = ? COLLATE NOCASE
-              AND {pwd_col} = ?
-            LIMIT 1
-        """
-        return con.execute(sql, (nickname, password)).fetchone()
+        # шаг 1: прямой поиск
+        user = con.execute(
+            f"SELECT * FROM users WHERE {name_col} = ? COLLATE NOCASE LIMIT 1",
+            (nn,),
+        ).fetchone()
+
+        # шаг 2: fallback по нормализации, если прямой не нашёл
+        if not user:
+            for r in con.execute("SELECT * FROM users"):
+                if _normalize(str(r.get(name_col) or "")) == nn:
+                    user = r
+                    break
+
+        if not user:
+            return None
+
+        # находим поле пароля и сравниваем нормализованно
+        for key in ("password", "pass", "pwd", "passwd", "secret"):
+            if key in user:
+                db_pw = _normalize(str(user[key] or ""))
+                return user if db_pw == pw else None
+
+        # в таблице нет поля пароля — считаем авторизацию неуспешной
+        return None
+
+
 
 
 def _bind_telegram_id(user_id: int, tg_id: int) -> None:
