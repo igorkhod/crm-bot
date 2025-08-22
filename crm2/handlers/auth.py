@@ -40,25 +40,20 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
         return None
 
     with get_db_connection() as con:
-        # удобный row_factory -> dict
-        con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
+        # 1) читаем имена столбцов без кастомной row_factory
+        cols = {row[1] for row in con.execute("PRAGMA table_info('users')").fetchall()}
 
-        # выясняем имена колонок
-        cols = {
-            r[1]  # name
-            for r in con.execute("PRAGMA table_info('users')").fetchall()
-        }
-        # колонка с ником
         name_col = next((c for c in ("nickname", "login", "username") if c in cols), None)
         if not name_col:
-            return None  # в таблице нет поля ника — пусть отвалится как «не найден»
+            return None
 
-        # колонка с паролем
         pwd_col = next((c for c in ("password", "pass", "pwd", "passwd", "secret") if c in cols), None)
         if not pwd_col:
-            return None  # нет колонки пароля — считаем, что авторизация не пройдена
+            return None
 
-        # сам запрос: ник без учёта регистра, пароль — точное совпадение
+        # 2) теперь включаем dict row_factory для удобного возврата
+        con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
+
         sql = f"""
             SELECT *
             FROM users
@@ -66,8 +61,7 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
               AND {pwd_col} = ?
             LIMIT 1
         """
-        row = con.execute(sql, (nickname, password)).fetchone()
-        return row
+        return con.execute(sql, (nickname, password)).fetchone()
 
 
 def _bind_telegram_id(user_id: int, tg_id: int) -> None:
