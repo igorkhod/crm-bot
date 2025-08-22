@@ -4,11 +4,11 @@
 # Добавлено автоматически 2025-08-21 05:43:17
 
 from datetime import datetime
-from typing import Dict, Any
 import sqlite3
 import aiosqlite
 from crm2.db.sqlite import DB_PATH
 from crm2.db.core import get_db_connection
+from typing import Dict, Any, Optional
 
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -74,3 +74,69 @@ def get_user_by_telegram(telegram_id: int) -> dict | None:
             (int(telegram_id),)
         ).fetchone()
     return dict(row) if row else None
+
+
+# --- проверка логина/пароля ---------------------------------------------------
+def verify_password(nickname: str, password: str) -> bool:
+    """
+    Возвращает True, если в таблице users есть запись с таким nickname и password.
+    (Если у тебя пароли хешируются — здесь нужно будет заменить сравнение.)
+    """
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT 1 FROM users WHERE nickname = ? AND password = ?",
+            (nickname, password),
+        ).fetchone()
+    return row is not None
+
+
+# --- поток пользователя по tg_id ---------------------------------------------
+def get_user_stream_id_by_tg(tg_id: int) -> Optional[int]:
+    """
+    Возвращает stream_id пользователя по его Telegram ID, если он есть в participants.
+    """
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT p.stream_id
+            FROM users u
+            JOIN participants p ON p.user_id = u.id
+            WHERE u.telegram_id = ?
+            ORDER BY p.id
+            LIMIT 1
+            """,
+            (tg_id,),
+        ).fetchone()
+    return int(row["stream_id"]) if row else None
+
+
+def get_user_stream_title_by_tg(tg_id: int) -> Optional[str]:
+    """
+    Возвращает название потока (streams.title) пользователя по его Telegram ID.
+    """
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT s.title AS stream_title
+            FROM users u
+            JOIN participants p ON p.user_id = u.id
+            JOIN streams      s ON s.id = p.stream_id
+            WHERE u.telegram_id = ?
+            ORDER BY p.id
+            LIMIT 1
+            """,
+            (tg_id,),
+        ).fetchone()
+    return str(row["stream_title"]) if row else None
+
+
+# Для обратной совместимости: код потока == title (в твоей схеме нет s.code)
+def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
+    """
+    Совместимость с существующими вызовами.
+    Возвращает то же, что и get_user_stream_title_by_tg.
+    """
+    return get_user_stream_title_by_tg(tg_id)
