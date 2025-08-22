@@ -1,8 +1,26 @@
+# from __future__ import annotations
+#
+# import asyncio, re
+# import logging
+# from typing import Optional, Tuple
+#
+# from aiogram import F, Router
+# from aiogram.fsm.context import FSMContext
+# from aiogram.fsm.state import State, StatesGroup
+# from aiogram.types import Message
+#
+# from crm2.db.core import get_db_connection
+# from crm2.db.sessions import get_user_stream_title_by_tg
+# from crm2.handlers_schedule import send_schedule_keyboard
+# from crm2.keyboards import role_kb
+
 from __future__ import annotations
 
-import asyncio, re
+import asyncio
 import logging
-from typing import Optional, Tuple
+import re
+import hashlib
+from typing import Optional
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -13,6 +31,7 @@ from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_user_stream_title_by_tg
 from crm2.handlers_schedule import send_schedule_keyboard
 from crm2.keyboards import role_kb
+
 
 
 router = Router(name="auth")
@@ -40,13 +59,53 @@ def _normalize(s: str) -> str:
     # схлопываем повторные пробелы
     s = re.sub(r"\s+", " ", s)
     return s.strip()
+#  отладочная функция
+def _normalize(s: str) -> str:
+    if s is None:
+        return ""
+    # убираем NBSP/BOM/Zero-Width и схлопываем пробелы
+    s = (s.replace("\u00A0", " ")
+           .replace("\uFEFF", "")
+           .replace("\u200B", "")
+           .replace("\u200C", "")
+           .replace("\u200D", ""))
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
+
+def _to_hex_bytes(s: str) -> str:
+    return (s or "").encode("utf-8", "replace").hex()
+
+def _sha256(s: str) -> str:
+    return hashlib.sha256((s or "").encode("utf-8")).hexdigest()
+
+def _debug_auth_dump(db_pw: str, in_pw: str, who: str = "users.password") -> None:
+    """
+    Печатаем в логи сырые байты и sha256 пароля из БД и введённого.
+    Делает это и для сырых строк, и для нормализованных.
+    """
+    try:
+        db_raw = db_pw or ""
+        in_raw = in_pw or ""
+        db_norm = _normalize(db_raw)
+        in_norm = _normalize(in_raw)
+
+        logging.warning("[AUTH DEBUG] field=%s RAW   len=%d hex=%s sha256=%s",
+                        who, len(db_raw), _to_hex_bytes(db_raw), _sha256(db_raw))
+        logging.warning("[AUTH DEBUG] input     RAW   len=%d hex=%s sha256=%s",
+                        len(in_raw), _to_hex_bytes(in_raw), _sha256(in_raw))
+        logging.warning("[AUTH DEBUG] field=%s NORM  len=%d hex=%s sha256=%s",
+                        who, len(db_norm), _to_hex_bytes(db_norm), _sha256(db_norm))
+        logging.warning("[AUTH DEBUG] input     NORM  len=%d hex=%s sha256=%s",
+                        len(in_norm), _to_hex_bytes(in_norm), _sha256(in_norm))
+    except Exception:
+        logging.exception("[AUTH DEBUG] dump failed")
+
+#  конец отладки
 
 def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
     """
-    Ищем пользователя по нику (без учёта регистра), пароль сверяем после нормализации.
-    Делаем два шага:
-      1) обычный SELECT по нику COLLATE NOCASE;
-      2) если не нашли — пробегаем всех пользователей и сравниваем нормализованные никнеймы.
+    Ищем пользователя по нику (регистронезависимо), пароль сверяем в Python.
+    Перед сравнением печатаем отладочную информацию: hex/sha256 сырых и нормализованных значений.
     """
     nn = _normalize(nickname)
     pw = _normalize(password)
@@ -54,23 +113,23 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
         return None
 
     with get_db_connection() as con:
-        # узнаём имя колонки ника
+        # читаем схему — как называется колонка ника?
         cols = {row[1] for row in con.execute("PRAGMA table_info('users')").fetchall()}
         name_col = next((c for c in ("nickname", "login", "username") if c in cols), None)
         if not name_col:
             return None
 
-        # хотим словари из SELECT
+        # работаем со словарями
         con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
 
-        # шаг 1: прямой поиск
+        # берём пользователя по нику (без учёта регистра)
         user = con.execute(
             f"SELECT * FROM users WHERE {name_col} = ? COLLATE NOCASE LIMIT 1",
             (nn,),
         ).fetchone()
 
-        # шаг 2: fallback по нормализации, если прямой не нашёл
         if not user:
+            # fallback: пробегаем всех и сравниваем нормализованные никнеймы
             for r in con.execute("SELECT * FROM users"):
                 if _normalize(str(r.get(name_col) or "")) == nn:
                     user = r
@@ -79,30 +138,15 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
         if not user:
             return None
 
-        # находим поле пароля и сравниваем нормализованно
-        for key in ("password", "pass", "pwd", "passwd", "secret"):
-            if key in user:
-                db_pw = _normalize(str(user[key] or ""))
-                return user if db_pw == pw else None
+        # найдём реальное поле с паролем и выведем сравнение/хэши в логи
+        pwd_field = next((k for k in ("password", "pass", "pwd", "passwd", "secret") if k in user), None)
+        if not pwd_field:
+            return None
 
-        # в таблице нет поля пароля — считаем авторизацию неуспешной
-        return None
+        db_pw = str(user.get(pwd_field) or "")
+        _debug_auth_dump(db_pw, password, who=f"users.{pwd_field}")
 
-
-
-
-def _bind_telegram_id(user_id: int, tg_id: int) -> None:
-    """Привязывает telegram_id к пользователю, если он ещё не привязан или отличается."""
-    with get_db_connection() as con:
-        con.execute(
-            """
-            UPDATE users
-            SET telegram_id = ?
-            WHERE id = ?
-            """,
-            (tg_id, user_id),
-        )
-        con.commit()
+        return user if _normalize(db_pw) == pw else None
 
 
 def _human_name(user_row: dict) -> str:
