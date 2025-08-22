@@ -107,3 +107,66 @@ def get_session_by_id(session_id: int) -> Optional[Dict]:
         ).fetchone()
         return dict(row) if row else None
 
+
+# crm2/db/sessions.py
+from __future__ import annotations
+import sqlite3
+from typing import Optional, List, Dict
+from .core import get_db_connection
+
+def get_user_stream(conn: sqlite3.Connection, tg_id: int) -> Optional[int]:
+    """
+    Возвращает stream_id пользователя:
+    - сначала смотрим в participants (последняя запись)
+    - если нет — берём users.cohort_id
+    """
+    row = conn.execute("""
+        WITH usr AS (
+          SELECT u.id   AS uid,
+                 COALESCE(p.stream_id, u.cohort_id) AS sid,
+                 p.id   AS pid
+          FROM users u
+          LEFT JOIN participants p ON p.user_id = u.id
+          WHERE u.telegram_id = ?
+          ORDER BY p.id DESC
+          LIMIT 1
+        )
+        SELECT sid FROM usr
+    """, (tg_id,)).fetchone()
+    return row[0] if row and row[0] is not None else None
+
+
+def get_upcoming_sessions(limit: int = 10, tg_id: Optional[int] = None) -> List[Dict]:
+    """
+    Возвращает ближайшие занятия из таблицы events.
+    Если передан tg_id — фильтруем по потоку пользователя.
+    """
+    with get_db_connection() as con:
+        stream_id = get_user_stream(con, tg_id) if tg_id else None
+        if stream_id:
+            rows = con.execute("""
+                SELECT id,
+                       date AS start_date,
+                       date AS end_date,
+                       title,
+                       ''   AS annotation
+                FROM events
+                WHERE stream_id = ?
+                  AND date(date) >= date('now')
+                ORDER BY date
+                LIMIT ?
+            """, (stream_id, limit)).fetchall()
+        else:
+            rows = con.execute("""
+                SELECT id,
+                       date AS start_date,
+                       date AS end_date,
+                       title,
+                       ''   AS annotation
+                FROM events
+                WHERE date(date) >= date('now')
+                ORDER BY date
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+        return [dict(r) for r in rows]

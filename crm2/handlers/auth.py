@@ -186,5 +186,5 @@ async def login_password(message: Message, state: FSMContext) -> None:
 
     await message.answer(text, reply_markup=role_kb(role))
     await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
-    await send_schedule_keyboard(message, limit=5, tg_id=tg_id)
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
     await state.clear()
