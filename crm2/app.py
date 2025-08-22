@@ -21,6 +21,7 @@ from crm2.keyboards import guest_start_kb, role_kb
 from crm2.routers import start
 from crm2.handlers import info  # ← импорт
 from crm2.handlers_schedule import schedule_router
+# from crm2.config import TELEGRAM_TOKEN
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -44,7 +45,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = Bot(TELEGRAM_TOKEN, parse_mode="HTML")  # ← включаем HTML по умолчанию
 dp = Dispatcher()
 
 dp.include_router(start.router)
@@ -78,7 +79,7 @@ async def cmd_home(message: Message):
     # добавить ниже:
     from crm2.handlers_schedule import send_schedule_keyboard
     await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
-    await send_schedule_keyboard(message, limit=5)
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
 
 
 async def main() -> None:

@@ -63,5 +63,5 @@ async def on_session_click(callback: CallbackQuery):
         f"<b>{s['date']}</b>\n"
         f"<b>Тема:</b> {s.get('title','—')}"
     )
-    await callback.message.answer(text)
+    await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()
