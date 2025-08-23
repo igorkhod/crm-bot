@@ -201,10 +201,6 @@ async def start_registration(message: Message, state: FSMContext):
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
-    await state.clear()
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-
 
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
 @router.callback_query(StateFilter(None), F.data.startswith("registration:"))
