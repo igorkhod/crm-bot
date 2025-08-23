@@ -5,6 +5,9 @@
 
 import asyncio
 from .app import main
+from .db.bootstrap import ensure_min_schema
+ensure_min_schema()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
