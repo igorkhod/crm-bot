@@ -20,7 +20,6 @@ from crm2.db.core import get_db_connection
 from crm2.db.sqlite import DB_PATH  # noqa: F401  # для диагностики/совместимости
 from crm2.handlers.consent import has_consent, set_consent, consent_kb, CONSENT_TEXT
 
-
 router = Router()
 DEBUG_MODE = False  # в проде держать False
 
@@ -29,13 +28,13 @@ NO_COHORT = "Без потока"
 
 # ===================== FSM =====================
 class RegistrationFSM(StatesGroup):
-    consent = State()           # ждём согласия
+    consent = State()  # ждём согласия
     full_name = State()
     nickname = State()
     password = State()
     password_confirm = State()
     cohort = State()
-    debug_tg_id = State()       # как было
+    debug_tg_id = State()  # как было
 
 
 # ================== helpers ====================
@@ -49,40 +48,81 @@ def _ensure_min_schema() -> None:
         # users
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS users (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                telegram_id  INTEGER UNIQUE,
-                username     TEXT,
-                nickname     TEXT UNIQUE,
-                password     TEXT,
-                full_name    TEXT,
-                role         TEXT DEFAULT 'user',
-                phone        TEXT,
-                email        TEXT,
-                events       TEXT,
-                participants TEXT,
-                cohort_id    INTEGER
+            CREATE TABLE IF NOT EXISTS users
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                telegram_id
+                INTEGER
+                UNIQUE,
+                username
+                TEXT,
+                nickname
+                TEXT
+                UNIQUE,
+                password
+                TEXT,
+                full_name
+                TEXT,
+                role
+                TEXT
+                DEFAULT
+                'user',
+                phone
+                TEXT,
+                email
+                TEXT,
+                events
+                TEXT,
+                participants
+                TEXT,
+                cohort_id
+                INTEGER
             )
             """
         )
         # participants (привязка пользователя к потоку)
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS participants (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER UNIQUE,
-                cohort_id  INTEGER,
-                stream_id  INTEGER,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            CREATE TABLE IF NOT EXISTS participants
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                user_id
+                INTEGER
+                UNIQUE,
+                cohort_id
+                INTEGER,
+                stream_id
+                INTEGER,
+                created_at
+                TEXT
+                DEFAULT
+                CURRENT_TIMESTAMP
             )
             """
         )
         # cohorts
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS cohorts (
-                id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL
+            CREATE TABLE IF NOT EXISTS cohorts
+            (
+                id
+                INTEGER
+                PRIMARY
+                KEY
+                AUTOINCREMENT,
+                name
+                TEXT
+                UNIQUE
+                NOT
+                NULL
             )
             """
         )
@@ -133,7 +173,8 @@ def _is_reg(text: str | None) -> bool:
 @router.message(StateFilter(None), Command("register"))
 @router.message(StateFilter(None), F.text.func(_is_reg))
 @router.message(StateFilter(None), F.text.in_({"🆕 Зарегистрироваться", "📝 Регистрация"}))
-@router.message(StateFilter(None), F.text.func(lambda t: isinstance(t, str) and any(s in t.lower() for s in ("регист", "зарегистр"))))
+@router.message(StateFilter(None),
+                F.text.func(lambda t: isinstance(t, str) and any(s in t.lower() for s in ("регист", "зарегистр"))))
 @router.message(StateFilter(None), Command("register"))
 async def start_registration(message: Message, state: FSMContext):
     _ensure_min_schema()
@@ -170,8 +211,10 @@ async def start_registration(message: Message, state: FSMContext):
 
 @router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
 async def reg_consent_agree(message: Message, state: FSMContext):
-    # обработку перенесено в crm2/handlers/consent.py::agree
-    return
+    # фиксируем согласие и продолжаем регистрацию
+    set_consent(message.from_user.id, True)
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
@@ -191,6 +234,14 @@ async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
     await cb.message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+
+
+@router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
+async def reg_consent_agree(message: Message, state: FSMContext):
+    # фиксируем согласие и продолжаем регистрацию
+    set_consent(message.from_user.id, True)
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(RegistrationFSM.full_name)
@@ -309,8 +360,8 @@ async def reg_cohort(message: Message, state: FSMContext):
             INSERT INTO participants (user_id, cohort_id)
             SELECT id, ?
             FROM users
-            WHERE telegram_id = ?
-            ON CONFLICT(user_id) DO UPDATE SET cohort_id = excluded.cohort_id
+            WHERE telegram_id = ? ON CONFLICT(user_id) DO
+            UPDATE SET cohort_id = excluded.cohort_id
             """,
             (cohort_id, tg_id),
         )
