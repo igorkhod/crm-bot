@@ -132,14 +132,35 @@ def _is_reg(text: str | None) -> bool:
 # Старт регистрации — ловим кнопку/текст/команду
 @router.message(StateFilter(None), Command("register"))
 @router.message(StateFilter(None), F.text.func(_is_reg))
+@router.message(StateFilter(None), F.text.in_({"🆕 Зарегистрироваться", "📝 Регистрация"}))
+@router.message(StateFilter(None), F.text.func(lambda t: isinstance(t, str) and any(s in t.lower() for s in ("регист", "зарегистр"))))
+@router.message(StateFilter(None), Command("register"))
 async def start_registration(message: Message, state: FSMContext):
     _ensure_min_schema()
 
-    # Если согласия ещё нет — спрашиваем его и ЖДЁМ «Соглашаюсь»
+    # Требуем согласие: без него показываем текст и ждём «Соглашаюсь»
     if not has_consent(message.from_user.id):
         await state.set_state(RegistrationFSM.consent)
         await message.answer(CONSENT_TEXT, reply_markup=consent_kb())
         return
+
+    # Согласие уже есть → обычный старт регистрации
+    await state.clear()
+
+    already = get_user_by_tg_id(message.from_user.id)
+    if already and not DEBUG_MODE:
+        kb = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="🔐 Войти")]],
+            resize_keyboard=True,
+        )
+        await message.answer(
+            "Вы уже зарегистрированы. Нажмите «🔐 Войти» и введите пароль.",
+            reply_markup=kb,
+        )
+        return
+
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
     # Согласие уже есть — начинаем регистрацию
     await state.clear()
@@ -156,17 +177,17 @@ async def reg_consent_agree(message: Message, state: FSMContext):
 
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
 @router.callback_query(StateFilter(None), F.data.startswith("registration:"))
+@router.callback_query(StateFilter(None), F.data.startswith("registration:"))
 async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
     _ensure_min_schema()
 
-    # 1) Требуем согласие, если его ещё нет
+    # Через inline-кнопку тоже требуем согласие
     if not has_consent(cb.from_user.id):
         await state.set_state(RegistrationFSM.consent)
-        await cb.answer()  # закрыть "часики" у callback
+        await cb.answer()  # закрыть «часики»
         await cb.message.answer(CONSENT_TEXT, reply_markup=consent_kb())
         return
 
-    # 2) Иначе начинаем регистрацию
     await cb.answer()
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
