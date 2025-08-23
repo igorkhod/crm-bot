@@ -25,6 +25,9 @@ from crm2.handlers_schedule import schedule_router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from crm2.handlers import start, consent
+from aiogram.fsm.context import FSMContext
+
+
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -102,16 +105,14 @@ dp.include_router(schedule_router)
 
 
 @dp.message(F.text == "/start")
-async def cmd_start(message: Message):
-    # Никого не «узнаём»: до логина все — гости
-    # Но без согласия показываем только «Соглашаюсь» и «📖 О проекте»
-    if not _has_consent(message.from_user.id):
-        await message.answer(_consent_text(), reply_markup=_consent_kb())
-        return
+async def cmd_start(message: Message, state: FSMContext):
+    # Обнуляем все «следы» прошлых сессий
+    await state.clear()
 
+    # Никого не «узнаём»: до входа все — гости
     await message.answer(
         "Добро пожаловать в CRM2!\nВы гость. Выберите действие:",
-        reply_markup=guest_start_kb(),
+        reply_markup=guest_start_kb(),  # из твоего keyboards.py (3 кнопки)
     )
 
 

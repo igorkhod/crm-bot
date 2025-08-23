@@ -18,6 +18,8 @@ from passlib.hash import bcrypt
 
 from crm2.db.core import get_db_connection
 from crm2.db.sqlite import DB_PATH  # noqa: F401  # для диагностики/совместимости
+from crm2.handlers.consent import has_consent, set_consent, consent_kb, CONSENT_TEXT
+
 
 router = Router()
 DEBUG_MODE = False  # в проде держать False
@@ -27,12 +29,13 @@ NO_COHORT = "Без потока"
 
 # ===================== FSM =====================
 class RegistrationFSM(StatesGroup):
+    consent = State()           # ждём согласия
     full_name = State()
     nickname = State()
     password = State()
     password_confirm = State()
     cohort = State()
-    debug_tg_id = State()  # только для отладки
+    debug_tg_id = State()       # как было
 
 
 # ================== helpers ====================
@@ -46,81 +49,40 @@ def _ensure_min_schema() -> None:
         # users
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS users
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY
-                AUTOINCREMENT,
-                telegram_id
-                INTEGER
-                UNIQUE,
-                username
-                TEXT,
-                nickname
-                TEXT
-                UNIQUE,
-                password
-                TEXT,
-                full_name
-                TEXT,
-                role
-                TEXT
-                DEFAULT
-                'user',
-                phone
-                TEXT,
-                email
-                TEXT,
-                events
-                TEXT,
-                participants
-                TEXT,
-                cohort_id
-                INTEGER
+            CREATE TABLE IF NOT EXISTS users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER UNIQUE,
+                username     TEXT,
+                nickname     TEXT UNIQUE,
+                password     TEXT,
+                full_name    TEXT,
+                role         TEXT DEFAULT 'user',
+                phone        TEXT,
+                email        TEXT,
+                events       TEXT,
+                participants TEXT,
+                cohort_id    INTEGER
             )
             """
         )
         # participants (привязка пользователя к потоку)
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS participants
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY
-                AUTOINCREMENT,
-                user_id
-                INTEGER
-                UNIQUE,
-                cohort_id
-                INTEGER,
-                stream_id
-                INTEGER,
-                created_at
-                TEXT
-                DEFAULT
-                CURRENT_TIMESTAMP
+            CREATE TABLE IF NOT EXISTS participants (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER UNIQUE,
+                cohort_id  INTEGER,
+                stream_id  INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         # cohorts
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS cohorts
-            (
-                id
-                INTEGER
-                PRIMARY
-                KEY
-                AUTOINCREMENT,
-                name
-                TEXT
-                UNIQUE
-                NOT
-                NULL
+            CREATE TABLE IF NOT EXISTS cohorts (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
             )
             """
         )
@@ -170,34 +132,26 @@ def _is_reg(text: str | None) -> bool:
 # Старт регистрации — ловим кнопку/текст/команду
 @router.message(StateFilter(None), Command("register"))
 @router.message(StateFilter(None), F.text.func(_is_reg))
-@router.message(StateFilter(None), Command("register"))
-@router.message(StateFilter(None), F.text.func(_is_reg))
 async def start_registration(message: Message, state: FSMContext):
-    from aiogram.types import ReplyKeyboardRemove
     _ensure_min_schema()
 
-    # Требуем согласие ДО старта
-    from sqlite3 import connect as _connect
-    from crm2.db.sqlite import DB_PATH as _DB
-    with _connect(_DB) as _c:
-        row = _c.execute(
-            "SELECT given FROM consents WHERE telegram_id=?", (message.from_user.id,)
-        ).fetchone()
-        has_c = bool(row and row[0])
-
-    if not has_c:
-        await message.answer(
-            "При отправке номера телефона и email при регистрации вы даёте согласие "
-            "на обработку персональных данных https://krasnpsytech.ru/ZQFHN32\n"
-            "Нажимая на кнопку «Соглашаюсь», вы соглашаетесь получать информационные "
-            "сообщения. Отказаться можно в любой момент 👌\n\n"
-            "Нажмите «Соглашаюсь» или /start.",
-        )
+    # Если согласия ещё нет — спрашиваем его и ЖДЁМ «Соглашаюсь»
+    if not has_consent(message.from_user.id):
+        await state.set_state(RegistrationFSM.consent)
+        await message.answer(CONSENT_TEXT, reply_markup=consent_kb())
         return
 
+    # Согласие уже есть — начинаем регистрацию
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+
+
+@router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
+async def reg_consent_agree(message: Message, state: FSMContext):
+    set_consent(message.from_user.id, True)
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Спасибо! Продолжим.\nВведите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
@@ -326,8 +280,8 @@ async def reg_cohort(message: Message, state: FSMContext):
             INSERT INTO participants (user_id, cohort_id)
             SELECT id, ?
             FROM users
-            WHERE telegram_id = ? ON CONFLICT(user_id) DO
-            UPDATE SET cohort_id = excluded.cohort_id
+            WHERE telegram_id = ?
+            ON CONFLICT(user_id) DO UPDATE SET cohort_id = excluded.cohort_id
             """,
             (cohort_id, tg_id),
         )
