@@ -1,0 +1,174 @@
+# crm2/handlers/registration.py
+
+from __future__ import annotations
+
+import sqlite3
+from passlib.hash import bcrypt
+
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+)
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.context import FSMContext
+
+router = Router()
+
+NO_COHORT = "Без потока"
+
+
+# ===================== FSM =====================
+class RegistrationFSM(StatesGroup):
+    full_name = State()
+    nickname = State()
+    password = State()
+    password_confirm = State()
+    cohort = State()
+
+
+# ================== helpers ====================
+def get_db_connection() -> sqlite3.Connection:
+    # файл БД должен совпадать с тем, что использует проект
+    return sqlite3.connect("crm2.db")
+
+
+def get_cohorts() -> list[tuple[int, str]]:
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM cohorts ORDER BY id")
+        rows = cur.fetchall()
+    # rows: [(id, name), ...]
+    return rows
+
+
+def nickname_exists(nickname: str) -> bool:
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM users WHERE nickname=?", (nickname,))
+        return cur.fetchone() is not None
+
+
+# ================ handlers =====================
+# Старт регистрации — ловим и кнопку с эмодзи, и текст «зарегистр…», и /register
+@router.message(F.text == "🆕 Зарегистрироваться")
+@router.message(F.text.func(lambda t: isinstance(t, str) and "зарегистр" in t.lower()))
+@router.message(Command("register"))
+async def start_registration(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:")
+
+
+@router.message(RegistrationFSM.full_name)
+async def reg_full_name(message: Message, state: FSMContext):
+    full_name = (message.text or "").strip()
+    if len(full_name) < 3:
+        await message.answer("Слишком коротко. Введите ФИО полностью:")
+        return
+    await state.update_data(full_name=full_name)
+    await state.set_state(RegistrationFSM.nickname)
+    await message.answer("Придумайте никнейм для входа:")
+
+
+@router.message(RegistrationFSM.nickname)
+async def reg_nickname(message: Message, state: FSMContext):
+    nickname = (message.text or "").strip()
+    if len(nickname) < 3:
+        await message.answer("Ник слишком короткий. Введите другой:")
+        return
+    if nickname_exists(nickname):
+        await message.answer("❌ Такой ник уже занят. Введите другой:")
+        return
+
+    await state.update_data(nickname=nickname)
+    await state.set_state(RegistrationFSM.password)
+    await message.answer("Введите пароль:")
+
+
+@router.message(RegistrationFSM.password)
+async def reg_password(message: Message, state: FSMContext):
+    pwd = (message.text or "").strip()
+    if len(pwd) < 6:
+        await message.answer("Пароль должен быть не короче 6 символов. Введите снова:")
+        return
+    await state.update_data(password=pwd)
+    await state.set_state(RegistrationFSM.password_confirm)
+    await message.answer("Повторите пароль:")
+
+
+@router.message(RegistrationFSM.password_confirm)
+async def reg_password_confirm(message: Message, state: FSMContext):
+    confirm = (message.text or "").strip()
+    data = await state.get_data()
+    if confirm != data.get("password", ""):
+        await message.answer("❌ Пароли не совпадают. Введите пароль ещё раз:")
+        await state.set_state(RegistrationFSM.password)
+        return
+
+    # Переходим к выбору потока
+    await state.set_state(RegistrationFSM.cohort)
+
+    cohorts = get_cohorts()
+    # Формируем правильную (двухуровневую) раскладку кнопок
+    rows: list[list[KeyboardButton]] = [[KeyboardButton(text=name)] for _, name in cohorts]
+    rows.append([KeyboardButton(text=NO_COHORT)])
+
+    kb = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+    await message.answer("Выберите поток:", reply_markup=kb)
+
+
+@router.message(RegistrationFSM.cohort)
+async def reg_cohort(message: Message, state: FSMContext):
+    choice = (message.text or "").strip()
+
+    cohorts = get_cohorts()
+    name_to_id = {name: cid for cid, name in cohorts}
+
+    if choice.lower() == NO_COHORT.lower():
+        cohort_id = None
+        cohort_name = NO_COHORT
+    elif choice in name_to_id:
+        cohort_id = name_to_id[choice]
+        cohort_name = choice
+    else:
+        await message.answer("❌ Такого варианта нет. Выберите из списка.")
+        return
+
+    data = await state.get_data()
+    password_hash = bcrypt.hash(data["password"])
+
+    # ВАЖНО: запись пользователя уже создана на /start (ensure_user),
+    # поэтому здесь обновляем существующую строку, а не INSERT!
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE users
+               SET full_name = ?,
+                   nickname = ?,
+                   password_hash = ?,
+                   role = 'user',
+                   cohort_id = ?
+             WHERE telegram_id = ?
+            """,
+            (
+                data["full_name"],
+                data["nickname"],
+                password_hash,
+                cohort_id,                # None допустим — будет NULL
+                message.from_user.id,
+            ),
+        )
+        conn.commit()
+
+    await state.clear()
+    await message.answer(
+        f"✅ Регистрация завершена!\n"
+        f"Добро пожаловать, {data['full_name']}.\n"
+        f"Поток: {cohort_name}",
+        reply_markup=ReplyKeyboardRemove(),
+    )
