@@ -170,9 +170,8 @@ async def start_registration(message: Message, state: FSMContext):
 
 @router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
 async def reg_consent_agree(message: Message, state: FSMContext):
-    set_consent(message.from_user.id, True)
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Спасибо! Продолжим.\nВведите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+    # обработку перенесено в crm2/handlers/consent.py::agree
+    return
 
 
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
