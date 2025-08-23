@@ -1,76 +1,25 @@
 # crm2/handlers/registration.py
-# -*- coding: utf-8 -*-
-#
-# === Файл: crm2/handlers/registration.py
-# Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram.
-# Добавлено автоматически 2025-08-21 05:43:17
-# ---------------------------------------------------------------------------
-#  МОДУЛЬ: crm2/handlers/registration.py
-#  НАЗНАЧЕНИЕ:
-#    Пошаговая регистрация пользователей (FSM) в CRM2 на aiogram 3.13.1.
-#    Собирает ФИО → ник → пароль → подтверждение → выбор потока (или «Без потока»).
-#    Проверяет уникальность ника; при занятости — сбрасывает FSM и предлагает
-#    начать регистрацию заново, чтобы избежать путаницы.
-#
-#  ОСОБЕННОСТИ:
-#    • Состояния FSM: full_name, nickname, password, password_confirm, cohort.
-#    • Запуск регистрации по кнопке «🆕 Зарегистрироваться», по фразе «зарегистр…»
-#      и по команде /register.
-#    • Выбор потока из таблицы cohorts + опция «Без потока» (cohort_id=NULL).
-#    • Сохранение в таблицу users через UPDATE по telegram_id (роль → 'user').
-#    • Пароли хэшируются bcrypt (passlib); логика last_seen ведётся отдельно.
-#
-#  ХРАНИЛИЩЕ ДАННЫХ:
-#    • SQLite: путь берётся из crm2.db.sqlite.DB_PATH — единая точка для проекта.
-#
-#  ЗАВИСИМОСТИ:
-#    aiogram==3.13.1, passlib[bcrypt], sqlite3 (stdlib), Python 3.12+.
-#
-#  ПРИМЕЧАНИЯ:
-#    • В схеме users заданы UNIQUE(telegram_id) и UNIQUE(nickname):
-#      один Telegram-ID = одна учётная запись; дублей ников не допускаем.
-#    • При повторной регистрации уже зарегистрированного пользователя FSM
-#      перенаправляет к «Войти», чтобы не смешивать учётные данные.
-# ---------------------------------------------------------------------------
-# -*- coding: utf-8 -*-
-# ---------------------------------------------------------------------------
-#  МОДУЛЬ: crm2/handlers/registration.py
-#  НАЗНАЧЕНИЕ:
-#    Пошаговая регистрация пользователей (FSM) в CRM2 на aiogram 3.13.1:
-#    ФИО → ник → пароль → подтверждение → выбор потока (или «Без потока»).
-#    Ник уникален; запись в БД происходит только в финале (UPDATE по telegram_id).
-#
-#    DEBUG_MODE = False (только для ADMIN_TG_ID) включает кнопку
-# ---------------------------------------------------------------------------
-
 from __future__ import annotations
 
 import sqlite3
-
 from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-
 from aiogram.filters import Command, StateFilter
-
+from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import (
     Message,
-    ReplyKeyboardMarkup,
     CallbackQuery,
+    ReplyKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardRemove,
 )
 from passlib.hash import bcrypt
-from crm2.db.core import get_db_connection
 
-from crm2.db.sqlite import DB_PATH
+from crm2.db.core import get_db_connection
+from crm2.db.sqlite import DB_PATH  # noqa: F401  # оставляем для совместимости/диагностики
 
 router = Router()
-# ⚠️ В бою ОБЯЗАТЕЛЬНО: DEBUG_MODE = False и удалить «debug_*» хэндлеры.
-DEBUG_MODE = False
-ADMIN_TG_ID = 448124106
-# ======================================================================
+DEBUG_MODE = False  # в проде держать False
 
 NO_COHORT = "Без потока"
 
@@ -86,6 +35,41 @@ class RegistrationFSM(StatesGroup):
 
 
 # ================== helpers ====================
+def _ensure_min_schema() -> None:
+    """
+    Создаёт необходимые таблицы (users, cohorts), если их ещё нет.
+    Это защищает первый запуск на Render от падения 'no such table: users'.
+    """
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER UNIQUE,
+                username     TEXT,
+                nickname     TEXT UNIQUE,
+                password     TEXT,
+                full_name    TEXT,
+                role         TEXT DEFAULT 'user',
+                phone        TEXT,
+                email        TEXT,
+                events       TEXT,
+                participants TEXT,
+                cohort_id    INTEGER
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cohorts (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+            """
+        )
+        conn.commit()
+
 
 def get_user_by_tg_id(tg_id: int) -> dict | None:
     with get_db_connection() as conn:
@@ -93,7 +77,7 @@ def get_user_by_tg_id(tg_id: int) -> dict | None:
         cur = conn.cursor()
         cur.execute("SELECT * FROM users WHERE telegram_id = ?", (tg_id,))
         row = cur.fetchone()
-        return dict(row) if row else None
+    return dict(row) if row else None
 
 
 def get_cohorts() -> list[tuple[int, str]]:
@@ -123,23 +107,21 @@ def resolve_telegram_id(message: Message, data: dict) -> int:
 
 
 def _is_reg(text: str | None) -> bool:
+    """Мягкий фильтр: ловит 'регистрация', '✏️ Регистрация', 'зарегистрироваться' и т.п."""
     if not text:
         return False
-    # убираем эмодзи/знаки; оставляем буквы/цифры/пробелы
     t = ''.join(ch for ch in text.casefold() if ch.isalnum() or ch.isspace()).strip()
-    return t.startswith("регистра")
+    return t.startswith("регист") or t.startswith("зарегистр") or "register" in t
 
 
 # ================ handlers =====================
 # Старт регистрации — ловим кнопку/текст/команду
-# @router.message(F.text == "🆕 Зарегистрироваться")
-# @router.message(F.text.func(lambda t: isinstance(t, str) and "зарегистр" in t.lower()))
-# @router.message(Command("register"))
 @router.message(StateFilter(None), Command("register"))
 @router.message(StateFilter(None), F.text.func(_is_reg))
-
 async def start_registration(message: Message, state: FSMContext):
+    _ensure_min_schema()  # защищаемся от 'no such table' на первом старте
     await state.clear()
+
     already = get_user_by_tg_id(message.from_user.id)
     if already and not DEBUG_MODE:
         kb = ReplyKeyboardMarkup(
@@ -152,15 +134,18 @@ async def start_registration(message: Message, state: FSMContext):
         )
         return
 
-    # Обычный путь — начинаем сбор данных
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
-@router.message(F.text == "Продолжить без подмены ID")
-async def debug_continue_no_fake(message: Message, state: FSMContext):
+# На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
+@router.callback_query(StateFilter(None), F.data.startswith("registration:"))
+async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
+    _ensure_min_schema()
+    await cb.answer()
+    await state.clear()
     await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+    await cb.message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(RegistrationFSM.full_name)
@@ -182,11 +167,10 @@ async def reg_nickname(message: Message, state: FSMContext):
         return
 
     if nickname_exists(nickname):
-        # При занятости ника — сбрасываем FSM и отправляем начать заново
         await state.clear()
         await message.answer(
             "❌ Такой ник уже занят.\n"
-            "Пожалуйста, начните регистрацию заново: /start → «🆕 Зарегистрироваться».",
+            "Пожалуйста, начните регистрацию заново: /start → «Регистрация».",
             reply_markup=ReplyKeyboardRemove(),
         )
         return
@@ -216,7 +200,6 @@ async def reg_password_confirm(message: Message, state: FSMContext):
         await state.set_state(RegistrationFSM.password)
         return
 
-    # Переходим к выбору потока
     await state.set_state(RegistrationFSM.cohort)
 
     cohorts = get_cohorts()
@@ -245,24 +228,21 @@ async def reg_cohort(message: Message, state: FSMContext):
         return
 
     data = await state.get_data()
-    password_hash = bcrypt.hash(data["password"])
     tg_id = resolve_telegram_id(message, data)
+    password_hash = bcrypt.hash(data["password"])
 
-    # ВАЖНО: строка гостя создана ранее (ensure_user на /start),
-    # здесь мы обновляем её финальными полями и ролью 'user'
     with get_db_connection() as conn:
         cur = conn.cursor()
-# === начало блока
-        password_hash = bcrypt.hash(data["password"])
 
-        # сначала пробуем обновить
+        # сначала пробуем обновить существующую запись по telegram_id
         cur.execute(
             """
             UPDATE users
             SET full_name = ?,
                 nickname  = ?,
                 password  = ?,
-                cohort_id = ?
+                cohort_id = ?,
+                role      = COALESCE(role, 'user')
             WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
@@ -277,9 +257,8 @@ async def reg_cohort(message: Message, state: FSMContext):
                 """,
                 (tg_id, data["nickname"], data["nickname"], password_hash, data["full_name"], cohort_id),
             )
-
-        # === конец блока
         conn.commit()
+
     await state.clear()
     text = (
         f"✅ Регистрация завершена!\n"
@@ -287,14 +266,11 @@ async def reg_cohort(message: Message, state: FSMContext):
         f"Поток: {cohort_name}\n\n"
         f"Теперь вы можете войти в систему:"
     )
-
     kb_login = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🔐 Войти")]],
         resize_keyboard=True,
     )
-
     await message.answer(text, reply_markup=kb_login)
-    return
 
 
 @router.message(Command("cancel"))
@@ -304,5 +280,3 @@ async def cancel(message: Message, state: FSMContext):
         "Регистрация отменена. Нажмите /start, чтобы начать заново.",
         reply_markup=ReplyKeyboardRemove(),
     )
-
-
