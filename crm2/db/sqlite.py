@@ -1,4 +1,3 @@
-#
 # === Файл: crm2/db/sqlite.py
 # Аннотация: модуль CRM, доступ к SQLite/ORM. Внутри функции: get_db_connection, aget_db_connection, ensure_schema.
 # Добавлено автоматически 2025-08-21 05:43:17

@@ -1,4 +1,3 @@
-#
 # === Файл: crm2/handlers/info.py
 # Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x. Внутри функции: _get, _code, _fmt_date, _build_details_kb, show_schedule....
 # Добавлено автоматически 2025-08-21 05:43:17

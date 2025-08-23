@@ -1,4 +1,3 @@
-#
 # === Файл: crm2/app.py
 # Аннотация: модуль CRM, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование, загрузка конфигурации из .env. Внутри функции: _get_role_from_db, cmd_start, cmd_home, main.
 # Добавлено автоматически 2025-08-21 05:43:17
@@ -20,10 +19,7 @@ from crm2.handlers import registration
 from crm2.keyboards import guest_start_kb, role_kb
 from crm2.routers import start
 from crm2.handlers import info  # ← импорт
-from crm2.handlers_schedule import schedule_router
-# from crm2.config import TELEGRAM_TOKEN
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -47,18 +43,14 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
-bot = Bot(
-    TELEGRAM_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-)
-
+bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
 dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)  # <— новое
 dp.include_router(info.router)  # ← подключение
-dp.include_router(schedule_router)
+
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
@@ -82,36 +74,14 @@ async def cmd_home(message: Message):
             f"Ваш кабинет. Роль: {role}",
             reply_markup=role_kb(role),
         )
-    # добавить ниже:
-    from crm2.handlers_schedule import send_schedule_keyboard
-    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+
 
 
 async def main() -> None:
     # мягкий запуск: сообщаем админу (если указан)
-    #  стартовый логгинг
-    import os, logging, hashlib, inspect
-
-    try:
-        import crm2.handlers_schedule as hs
-        hs_path = inspect.getfile(hs)
-        with open(hs_path, "rb") as f:
-            hs_sha = hashlib.sha1(f.read()).hexdigest()[:10]
-    except Exception:
-        hs_path = "<unknown>"
-        hs_sha = "<na>"
-
-    logging.warning("[BUILD] COMMIT=%s  BRANCH=%s",
-                    os.getenv("RENDER_GIT_COMMIT", "<local>"),
-                    os.getenv("RENDER_GIT_BRANCH", "<local>"))
-    logging.warning("[DIAG] handlers_schedule=%s sha=%s", hs_path, hs_sha)
-
-    # === конец стартового логгинга
-
     if ADMIN_ID:
         try:
-            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен! Выберите в меню команду /start для начала работы.")
+            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен и готов к работе!")
         except Exception as e:
             logging.error(f"Не удалось написать админу при старте: {e}")
 
