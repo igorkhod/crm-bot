@@ -158,6 +158,15 @@ async def reg_consent_agree(message: Message, state: FSMContext):
 @router.callback_query(StateFilter(None), F.data.startswith("registration:"))
 async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
     _ensure_min_schema()
+
+    # 1) Требуем согласие, если его ещё нет
+    if not has_consent(cb.from_user.id):
+        await state.set_state(RegistrationFSM.consent)
+        await cb.answer()  # закрыть "часики" у callback
+        await cb.message.answer(CONSENT_TEXT, reply_markup=consent_kb())
+        return
+
+    # 2) Иначе начинаем регистрацию
     await cb.answer()
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
