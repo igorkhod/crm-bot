@@ -36,6 +36,44 @@ def _get_role_from_db(tg_id: int) -> str:
         return (row["role"] if row and row["role"] else "curious")
 
 
+def _has_consent(tg_id: int) -> bool:
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT given FROM consents WHERE telegram_id=?", (tg_id,)
+        ).fetchone()
+        return bool(row and row[0])
+
+def _set_consent(tg_id: int, given: bool = True) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO consents (telegram_id, given)
+            VALUES (?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET given=excluded.given, ts=CURRENT_TIMESTAMP
+            """,
+            (tg_id, 1 if given else 0),
+        )
+        conn.commit()
+
+def _consent_text() -> str:
+    return (
+        "При отправке номера телефона и email при регистрации вы даёте согласие "
+        "на обработку персональных данных https://krasnpsytech.ru/ZQFHN32\n"
+        "Нажимая на кнопку «Соглашаюсь», вы соглашаетесь получать информационные "
+        "сообщения. Отказаться можно в любой момент 👌"
+    )
+
+def _consent_kb():
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Соглашаюсь")],
+            [KeyboardButton(text="📖 О проекте")],
+        ],
+        resize_keyboard=True,
+    )
+
+
 load_dotenv()
 
 ensure_schema()
@@ -55,20 +93,32 @@ bot = Bot(
 
 dp = Dispatcher()
 
-dp.include_router(start.router)
-dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)  # <— новое
 dp.include_router(info.router)  # ← подключение
 dp.include_router(schedule_router)
 
+
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message):
-    # НИЧЕГО НЕ ЧИТАЕМ И НЕ ПИШЕМ В БД!
+    # Никого не «узнаём»: до логина все — гости
+    # Но без согласия показываем только «Соглашаюсь» и «📖 О проекте»
+    if not _has_consent(message.from_user.id):
+        await message.answer(_consent_text(), reply_markup=_consent_kb())
+        return
+
     await message.answer(
         "Добро пожаловать в CRM2!\nВы гость. Выберите действие:",
         reply_markup=guest_start_kb(),
     )
+
+
+
+@dp.message(F.text == "Соглашаюсь")
+async def agree(message: Message):
+    _set_consent(message.from_user.id, True)
+    await message.answer("Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
+
 
 
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))

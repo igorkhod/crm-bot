@@ -27,5 +27,60 @@ async def aget_db_connection() -> aiosqlite.Connection:
     return conn
 
 def ensure_schema() -> None:
-    """NO-OP в проде: никаких CREATE TABLE. Схемой управляем миграциями/ручками."""
-    return
+    """Идемпотентно создаёт ключевые таблицы БД."""
+    import sqlite3, os
+    if not os.path.exists(DB_PATH):
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        cur = conn.cursor()
+
+        # users
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id  INTEGER UNIQUE,
+            username     TEXT,
+            nickname     TEXT UNIQUE,
+            password     TEXT,
+            full_name    TEXT,
+            role         TEXT DEFAULT 'user',
+            phone        TEXT,
+            email        TEXT,
+            events       TEXT,
+            participants TEXT,
+            cohort_id    INTEGER
+        )""")
+
+        # cohorts
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS cohorts (
+            id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            name  TEXT UNIQUE NOT NULL
+        )""")
+
+        # participants (связь user → cohort)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS participants (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER UNIQUE,
+            cohort_id  INTEGER,
+            stream_id  INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )""")
+
+        # streams (нужна логике входа)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS streams (
+            id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL
+        )""")
+
+        # consents (согласия на обработку)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS consents (
+            telegram_id INTEGER PRIMARY KEY,
+            given       INTEGER NOT NULL DEFAULT 0,
+            ts          TEXT    DEFAULT CURRENT_TIMESTAMP
+        )""")
+
+        conn.commit()
