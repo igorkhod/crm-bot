@@ -24,7 +24,7 @@ from crm2.handlers_schedule import schedule_router
 # from crm2.config import TELEGRAM_TOKEN
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from crm2.handlers import start
+from crm2.handlers import start, consent
 
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
@@ -93,6 +93,8 @@ bot = Bot(
 
 dp = Dispatcher()
 
+dp.include_router(consent.router)
+dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)  # <— новое
 dp.include_router(info.router)  # ← подключение
