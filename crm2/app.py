@@ -116,12 +116,23 @@ async def cmd_start(message: Message, state: FSMContext):
     )
 
 
+# было: отправляли «Спасибо!…»
+# @dp.message(F.text == "Соглашаюсь")
+# async def agree(message: Message, state: FSMContext):
+#     _set_consent(message.from_user.id, True)
+#     # избегаем циклического импорта: берём класс FSM внутри функции
+#     from crm2.handlers.registration import RegistrationFSM
+#     from aiogram.types import ReplyKeyboardRemove
+#
+#     # сразу продолжаем регистрацию
+#     await state.set_state(RegistrationFSM.full_name)
+#     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
-@dp.message(F.text == "Соглашаюсь")
-async def agree(message: Message):
-    _set_consent(message.from_user.id, True)
-    await message.answer("app.py Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
 
+# @dp.message(F.text == "Соглашаюсь")
+# async def agree(message: Message):
+#     _set_consent(message.from_user.id, True)
+#     await message.answer("app.py Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
 
 
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))
