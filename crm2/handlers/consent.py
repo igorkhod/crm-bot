@@ -48,8 +48,26 @@ def set_consent(tg_id: int, given: bool = True) -> None:
 
 from aiogram.filters import StateFilter
 
-@router.message(StateFilter(None), F.text == "Соглашаюсь")
+from aiogram import F
+from aiogram.fsm.context import FSMContext
+
+
+@router.message(F.text == "Соглашаюсь")
 async def agree(message: Message, state: FSMContext):
-    # общий случай (вне регистрационной воронки):
+    # фиксируем согласие
     set_consent(message.from_user.id, True)
+
+    # если находимся внутри регистрации — продолжаем её немедленно
+    try:
+        from crm2.handlers.registration import RegistrationFSM  # lazy-импорт
+        cur = await state.get_state()
+        if cur == RegistrationFSM.consent.state:
+            from aiogram.types import ReplyKeyboardRemove
+            await state.set_state(RegistrationFSM.full_name)
+            await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+            return
+    except Exception:
+        pass  # на всякий случай — откат к универсальному тексту
+
+    # общий случай (вне регистрации)
     await message.answer("Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")

@@ -175,7 +175,6 @@ def _is_reg(text: str | None) -> bool:
 @router.message(StateFilter(None), F.text.in_({"🆕 Зарегистрироваться", "📝 Регистрация"}))
 @router.message(StateFilter(None),
                 F.text.func(lambda t: isinstance(t, str) and any(s in t.lower() for s in ("регист", "зарегистр"))))
-@router.message(StateFilter(None), Command("register"))
 async def start_registration(message: Message, state: FSMContext):
     _ensure_min_schema()
 
@@ -185,7 +184,6 @@ async def start_registration(message: Message, state: FSMContext):
         await message.answer(CONSENT_TEXT, reply_markup=consent_kb())
         return
 
-    # Согласие уже есть → обычный старт регистрации
     await state.clear()
 
     already = get_user_by_tg_id(message.from_user.id)
@@ -203,22 +201,12 @@ async def start_registration(message: Message, state: FSMContext):
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
-    # Согласие уже есть — начинаем регистрацию
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
-@router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
-async def reg_consent_agree(message: Message, state: FSMContext):
-    # фиксируем согласие и продолжаем регистрацию
-    set_consent(message.from_user.id, True)
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-
-
 # На будущее: если сделаешь inline-кнопку с callback_data="registration:start"
-@router.callback_query(StateFilter(None), F.data.startswith("registration:"))
 @router.callback_query(StateFilter(None), F.data.startswith("registration:"))
 async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
     _ensure_min_schema()
@@ -234,14 +222,6 @@ async def registration_start_cb(cb: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(RegistrationFSM.full_name)
     await cb.message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-
-
-@router.message(RegistrationFSM.consent, F.text == "Соглашаюсь")
-async def reg_consent_agree(message: Message, state: FSMContext):
-    # фиксируем согласие и продолжаем регистрацию
-    set_consent(message.from_user.id, True)
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(RegistrationFSM.full_name)
