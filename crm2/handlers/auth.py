@@ -1,168 +1,190 @@
-# === Файл: crm2/handlers/auth.py
-# Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование. Внутри классы: LoginFSM, функции: build_main_menu, get_db, fetch_user_by_nickname, touch_last_seen, attach_telegram_if_empty....
-# Добавлено автоматически 2025-08-21 05:43:17
+from __future__ import annotations
 
-# crm2/handlers/auth.py
-import logging  # если не импортирован вверху
-import sqlite3
-from passlib.hash import bcrypt
-from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.fsm.state import StatesGroup, State
+import asyncio
+import logging
+import re
+import hmac
+from typing import Optional
+
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message
+
+from crm2.db.core import get_db_connection
+from crm2.db.sessions import get_user_stream_title_by_tg
+from crm2.handlers_schedule import send_schedule_keyboard
 from crm2.keyboards import role_kb
-from crm2.services.schedule import next_training_text_for_user  # ← импорт наверху файла
-from crm2.db.sqlite import DB_PATH
+
+router = Router(name="auth")
 
 
-router = Router()
-
-# ---------- FSM ----------
-class LoginFSM(StatesGroup):
+# -----------------------
+# FSM для входа в систему
+# -----------------------
+class LoginSG(StatesGroup):
     nickname = State()
     password = State()
 
 
-def build_main_menu(role: str) -> ReplyKeyboardMarkup:
-    """
-    Главное меню:
-      • для admin: добавляем строку '🛠 Панель администратора'
-      • для остальных ролей: без админки
-    """
-    rows = [
-        [KeyboardButton(text="ℹ️ Информация")],
-        [KeyboardButton(text="🏠 Меню")],
-    ]
-    if (role or "").lower() == "admin":
-        rows.insert(0, [KeyboardButton(text="🛠 Панель администратора")])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+# -----------------------
+# Вспомогательные функции
+# -----------------------
+def _normalize(s: str) -> str:
+    """Убираем неразрывные/невидимые пробелы и обрезаем края."""
+    if s is None:
+        return ""
+    s = (s.replace("\u00A0", " ")   # NBSP
+           .replace("\uFEFF", "")   # BOM
+           .replace("\u200B", "")
+           .replace("\u200C", "")
+           .replace("\u200D", ""))
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
 
 
-# ---------- DB helpers ----------
+# bcrypt (если в БД $2b$… — сверяем через bcrypt, иначе обычной строкой)
+_BCRYPT_RE = re.compile(r"^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$")
 
-# ---------- DB helpers (BEGIN) ----------
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _is_bcrypt(s: str) -> bool:
+    return bool(s) and bool(_BCRYPT_RE.match(s))
 
-def fetch_user_by_nickname(nickname: str) -> dict | None:
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, telegram_id, full_name, nickname, password AS password_hash, role, cohort_id
-              FROM users
-             WHERE nickname = ?
-             LIMIT 1
-            """,
-            (nickname,),
-        )
-        row = cur.fetchone()
-        return dict(row) if row else None
+def _check_password(db_pw: str, input_pw: str) -> bool:
+    raw_db = str(db_pw or "")
+    raw_in = str(input_pw or "")
 
-def touch_last_seen(telegram_id: int) -> None:
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE users SET last_seen = datetime('now') WHERE telegram_id = ?",
-            (telegram_id,),
-        )
-        conn.commit()
+    if _is_bcrypt(raw_db):
+        try:
+            import bcrypt
+            return bcrypt.checkpw(raw_in.encode("utf-8"), raw_db.encode("utf-8"))
+        except Exception:
+            logging.exception("[AUTH] bcrypt check failed")
+            return False
 
-def attach_telegram_if_empty(user_id: int, tg_id: int) -> None:
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute(
+    a = _normalize(raw_db)
+    b = _normalize(raw_in)
+    try:
+        return hmac.compare_digest(a, b)
+    except Exception:
+        return a == b
+
+
+def _human_name(user_row: dict) -> str:
+    for key in ("full_name", "fio", "name"):
+        val = user_row.get(key)
+        if val:
+            return str(val)
+    return str(user_row.get("nickname", "—"))
+
+
+def _user_role(user_row: dict) -> str:
+    return str(user_row.get("role", "user"))
+
+
+def _bind_telegram_id(user_id: int, tg_id: int) -> None:
+    with get_db_connection() as con:
+        con.execute(
             """
             UPDATE users
                SET telegram_id = ?
              WHERE id = ?
-               AND telegram_id IS NULL
+               AND (telegram_id IS NULL OR telegram_id <> ?)
             """,
-            (tg_id, user_id),
+            (tg_id, user_id, tg_id),
         )
-        conn.commit()
-# ---------- DB helpers (END) ----------
+        con.commit()
 
-# ---------- Handlers ----------
-# запускаем логин: кнопка «Войти», текст «войти», или команда /login
-@router.message(F.text == "🔐 Войти")
-@router.message(F.text.func(lambda t: isinstance(t, str) and "войти" in t.lower()))
-@router.message(Command("login"))
-async def start_login(message: Message, state: FSMContext):
+
+def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
+    nn = _normalize(nickname)
+    pw = _normalize(password)
+    if not nn or not pw:
+        return None
+
+    with get_db_connection() as con:
+        cols = {row[1] for row in con.execute("PRAGMA table_info('users')").fetchall()}
+        name_col = next((c for c in ("nickname", "login", "username") if c in cols), None)
+        if not name_col:
+            return None
+
+        con.row_factory = lambda cur, row: {d[0]: row[i] for i, d in enumerate(cur.description)}
+        user = con.execute(
+            f"SELECT * FROM users WHERE {name_col} = ? COLLATE NOCASE LIMIT 1",
+            (nn,),
+        ).fetchone()
+
+        if not user:
+            # fallback на «нормализованное» сравнение
+            for r in con.execute("SELECT * FROM users"):
+                if _normalize(str(r.get(name_col) or "")) == nn:
+                    user = r
+                    break
+
+        if not user:
+            return None
+
+        pwd_field = next((k for k in ("password", "pass", "pwd", "passwd", "secret") if k in user), None)
+        if not pwd_field:
+            return None
+
+        db_pw = str(user.get(pwd_field) or "")
+        return user if _check_password(db_pw, password) else None
+
+
+# -----------------------
+# Хендлеры
+# -----------------------
+@router.message(F.text.in_({"/login", "🔐 Войти"}))
+async def cmd_login(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await state.set_state(LoginFSM.nickname)
-    await message.answer("Введите ваш никнейм:", reply_markup=ReplyKeyboardRemove())
+    await state.set_state(LoginSG.nickname)
+    await message.answer("Введите ваш никнейм:")
 
 
-@router.message(LoginFSM.nickname)
-async def login_nickname(message: Message, state: FSMContext):
-    nickname = (message.text or "").strip()
-    if len(nickname) < 3:
-        await message.answer("Ник слишком короткий. Попробуйте ещё раз:")
-        return
-
-    user = fetch_user_by_nickname(nickname)
-    if not user:
-        await message.answer("❌ Пользователь с таким ником не найден. Проверьте ник или зарегистрируйтесь.")
-        return
-
-    await state.update_data(user_id=user["id"], nickname=nickname)
-    await state.set_state(LoginFSM.password)
+@router.message(LoginSG.nickname)
+async def login_nickname(message: Message, state: FSMContext) -> None:
+    await state.update_data(nickname=_normalize(message.text or ""))
+    await state.set_state(LoginSG.password)
     await message.answer("Введите пароль:")
 
 
-@router.message(LoginFSM.password)
-async def login_password(message: Message, state: FSMContext):
+@router.message(LoginSG.password)
+async def login_password(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    nickname = data.get("nickname") or ""
+    nickname = str(data.get("nickname", "")).strip()
+    password = _normalize(message.text or "")
 
-    user = fetch_user_by_nickname(nickname)
+    if not nickname or not password:
+        await message.answer("Нужно ввести и никнейм, и пароль. Попробуйте ещё раз: /login")
+        await state.clear()
+        return
+
+    user = await asyncio.to_thread(_fetch_user_by_credentials, nickname, password)
     if not user:
-        await message.answer("❌ Пользователь не найден. Начните вход заново: /login")
+        await message.answer("❌ Неверный никнейм или пароль. Попробуйте ещё раз: /login")
         await state.clear()
         return
 
-    pwd = (message.text or "").strip()
-    hash_ = user.get("password_hash") or ""
-
-    # проверяем хэш
-    try:
-        ok = bool(hash_) and bcrypt.verify(pwd, hash_)
-    except Exception:
-        ok = False
-
-    if not ok:
-        await message.answer("❌ Неверный пароль. Попробуйте ещё раз или введите /login заново.")
-        return
-
-    # защита от «чужого» tg аккаунта: если в записи другой telegram_id — предупредим
     tg_id = message.from_user.id
-    u_tg = user.get("telegram_id")
-    if u_tg is not None and u_tg != "" and u_tg != tg_id:
-        await state.clear()
-        await message.answer(
-            "⚠️ Этот ник уже привязан к другому Telegram-аккаунту. Обратитесь к администратору."
-        )
-        return
+    try:
+        await asyncio.to_thread(_bind_telegram_id, int(user["id"]), tg_id)
+    except Exception:
+        logging.exception("failed to bind telegram id")
 
-    # привязываем tg_id, если пустой; обновляем last_seen
-    attach_telegram_if_empty(user["id"], tg_id)
-    touch_last_seen(tg_id)
+    full_name = _human_name(user)
+    role = _user_role(user)
 
-    role = user.get("role") or "curious"
+    stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
 
-    logging.info(f"login: nickname={user.get('nickname')}, tg_id={tg_id}, role_in_db={role}")
-    await state.clear()
-    await message.answer(
-        f"✅ Вход выполнен.\nВы вошли как: {user.get('full_name') or nickname}\nРоль: {role}",
-        reply_markup=role_kb(role)
+    text = (
+        "✅ Вход выполнен.\n"
+        f"Вы вошли как: {full_name}\n"
+        f"Роль: {role}"
     )
+    if stream_title:
+        text += f" Поток: {stream_title}"
 
-
-
-    txt = next_training_text_for_user(message.from_user.id)
-    if txt:
-        await message.answer(txt)
+    await message.answer(text, reply_markup=role_kb(role))
+    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+    await state.clear()

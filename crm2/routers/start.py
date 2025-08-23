@@ -1,3 +1,4 @@
+#
 # === Файл: crm2/routers/start.py
 # Аннотация: модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: get_user_role, cmd_start.
 # Добавлено автоматически 2025-08-21 05:43:17
@@ -6,7 +7,7 @@
 
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from crm2.db.sqlite import get_db_connection
+from crm2.db.core import get_db_connection
 
 router = Router()
 
@@ -30,9 +31,7 @@ async def cmd_start(message: Message):
     if role is None:  # новичок, не зарегистрирован
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="🆕 Зарегистрироваться")],
-                [KeyboardButton(text="🔑 Войти")],
-                [KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="🆕 Зарегистрироваться"), KeyboardButton(text="🔑 Войти"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
@@ -41,9 +40,7 @@ async def cmd_start(message: Message):
     elif role == "user":
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="📅 Расписание")],
-                [KeyboardButton(text="📚 Материалы")],
-                [KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
@@ -52,8 +49,7 @@ async def cmd_start(message: Message):
     elif role == "advanced_user":
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="📰 Новости психонетики")],
-                [KeyboardButton(text="📚 Новые технологии")]
+                [KeyboardButton(text="📰 Новости психонетики"), KeyboardButton(text="📚 Новые технологии")]
             ],
             resize_keyboard=True
         )
@@ -62,8 +58,7 @@ async def cmd_start(message: Message):
     elif role == "admin":
         kb = ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="⚙ Админ-панель")],
-                [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="ℹ Информация")]
+                [KeyboardButton(text="⚙ Админ-панель"), KeyboardButton(text="📅 Расписание"), KeyboardButton(text="ℹ️ Информация")]
             ],
             resize_keyboard=True
         )
