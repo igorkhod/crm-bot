@@ -120,7 +120,7 @@ async def cmd_start(message: Message, state: FSMContext):
 @dp.message(F.text == "Соглашаюсь")
 async def agree(message: Message):
     _set_consent(message.from_user.id, True)
-    await message.answer("Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
+    await message.answer("app.py Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
 
 
 

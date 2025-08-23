@@ -54,12 +54,21 @@ from aiogram.fsm.context import FSMContext
 
 @router.message(F.text == "Соглашаюсь")
 async def agree(message: Message, state: FSMContext):
-    # фиксируем согласие
-    set_consent(message.from_user.id, True)
+    await message.answer("👉 [consent.py] agree() поймал кнопку")
+    # ниже можешь временно закомментировать реальную логику,
+    # чтобы видеть только маячок
+    # set_consent(...); await state.set_state(...); ...
 
-    # всегда продолжаем регистрацию (если она не шла — начнётся сейчас)
-    from crm2.handlers.registration import RegistrationFSM  # lazy-импорт, чтобы не ловить циклический
-    from aiogram.types import ReplyKeyboardRemove
 
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
+#
+# @router.message(F.text == "Соглашаюсь")
+# async def agree(message: Message, state: FSMContext):
+#     # фиксируем согласие
+#     set_consent(message.from_user.id, True)
+#
+#     # всегда продолжаем регистрацию (если она не шла — начнётся сейчас)
+#     from crm2.handlers.registration import RegistrationFSM  # lazy-импорт, чтобы не ловить циклический
+#     from aiogram.types import ReplyKeyboardRemove
+#
+#     await state.set_state(RegistrationFSM.full_name)
+#     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
