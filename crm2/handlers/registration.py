@@ -16,7 +16,7 @@ from aiogram.types import (
 from passlib.hash import bcrypt
 
 from crm2.db.core import get_db_connection
-from crm2.db.sqlite import DB_PATH  # noqa: F401  # оставляем для совместимости/диагностики
+from crm2.db.sqlite import DB_PATH  # noqa: F401  # для диагностики/совместимости
 
 router = Router()
 DEBUG_MODE = False  # в проде держать False
@@ -37,11 +37,12 @@ class RegistrationFSM(StatesGroup):
 # ================== helpers ====================
 def _ensure_min_schema() -> None:
     """
-    Создаёт необходимые таблицы (users, cohorts), если их ещё нет.
-    Это защищает первый запуск на Render от падения 'no such table: users'.
+    Создаёт необходимые таблицы (users, cohorts, participants), если их ещё нет.
+    Это защищает первый запуск на Render от ошибок 'no such table: ...'.
     """
     with get_db_connection() as conn:
         cur = conn.cursor()
+        # users
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -60,6 +61,19 @@ def _ensure_min_schema() -> None:
             )
             """
         )
+        # participants (привязка пользователя к потоку)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS participants (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER UNIQUE,
+                cohort_id  INTEGER,
+                stream_id  INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        # cohorts
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS cohorts (
@@ -96,11 +110,7 @@ def nickname_exists(nickname: str) -> bool:
 
 
 def resolve_telegram_id(message: Message, data: dict) -> int:
-    """
-    Возвращает telegram_id для записи в БД:
-    • если DEBUG_MODE и в состоянии есть fake_telegram_id — берём его;
-    • иначе — реальный message.from_user.id.
-    """
+    """Возвращает telegram_id для записи в БД."""
     if DEBUG_MODE and data.get("fake_telegram_id"):
         return int(data["fake_telegram_id"])
     return message.from_user.id
@@ -257,6 +267,17 @@ async def reg_cohort(message: Message, state: FSMContext):
                 """,
                 (tg_id, data["nickname"], data["nickname"], password_hash, data["full_name"], cohort_id),
             )
+
+        # синхронизируем участника с выбранным потоком
+        cur.execute(
+            """
+            INSERT INTO participants (user_id, cohort_id)
+            SELECT id, ? FROM users WHERE telegram_id = ?
+            ON CONFLICT(user_id) DO UPDATE SET cohort_id = excluded.cohort_id
+            """,
+            (cohort_id, tg_id),
+        )
+
         conn.commit()
 
     await state.clear()
