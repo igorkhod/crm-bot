@@ -50,10 +50,14 @@ import sqlite3
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+
+from aiogram.filters import Command, StateFilter
+
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import (
     Message,
     ReplyKeyboardMarkup,
+    CallbackQuery,
     KeyboardButton,
     ReplyKeyboardRemove,
 )
@@ -118,11 +122,22 @@ def resolve_telegram_id(message: Message, data: dict) -> int:
     return message.from_user.id
 
 
+def _is_reg(text: str | None) -> bool:
+    if not text:
+        return False
+    # убираем эмодзи/знаки; оставляем буквы/цифры/пробелы
+    t = ''.join(ch for ch in text.casefold() if ch.isalnum() or ch.isspace()).strip()
+    return t.startswith("регистра")
+
+
 # ================ handlers =====================
 # Старт регистрации — ловим кнопку/текст/команду
-@router.message(F.text == "🆕 Зарегистрироваться")
-@router.message(F.text.func(lambda t: isinstance(t, str) and "зарегистр" in t.lower()))
-@router.message(Command("register"))
+# @router.message(F.text == "🆕 Зарегистрироваться")
+# @router.message(F.text.func(lambda t: isinstance(t, str) and "зарегистр" in t.lower()))
+# @router.message(Command("register"))
+@router.message(StateFilter(None), Command("register"))
+@router.message(StateFilter(None), F.text.func(_is_reg))
+
 async def start_registration(message: Message, state: FSMContext):
     await state.clear()
     already = get_user_by_tg_id(message.from_user.id)
