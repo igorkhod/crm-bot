@@ -174,16 +174,28 @@ async def login_password(message: Message, state: FSMContext) -> None:
     full_name = _human_name(user)
     role = _user_role(user)
 
-stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
-stream_line = (
-    f"\nПоток: {stream_title or ('#' + str(stream_id)) if stream_id else '— не выбран —'}"
-)
 
-text = (
-    "✅ Вход выполнен.\n"
-    f"Вы вошли как: {full_name}\n"
-    f"Роль: {role}"
-    f"{stream_line}"
-)
+    # --- Показать поток/роль и стартовое сообщение ---
+    stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
+    stream_line = (
+        f"\nПоток: {stream_title or ('#' + str(stream_id)) if stream_id else '— не выбран —'}"
+    )
+
+    text = (
+        "✅ Вход выполнен.\n"
+        f"Вы вошли как: {full_name}\n"
+        f"Роль: {role}"
+        f"{stream_line}"
+    )
+    await message.answer(text)
+
+    # --- Показать ближайшее занятие и клавиатуру расписания ---
+    try:
+        await send_schedule_keyboard(message, tg_id=tg_id, limit=5)
+    except Exception:
+        logging.exception("send_schedule_keyboard failed")
+
+    await state.clear()
+
 
 

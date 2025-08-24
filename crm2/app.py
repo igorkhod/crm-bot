@@ -20,7 +20,7 @@ from crm2.handlers import registration
 from crm2.keyboards import guest_start_kb, role_kb
 from crm2.routers import start
 from crm2.handlers import info  # ← импорт
-from crm2.handlers_schedule import schedule_router
+from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
 # from crm2.config import TELEGRAM_TOKEN
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -183,6 +183,9 @@ async def main() -> None:
 
     try:
         # просто стартуем поллинг; на Windows без сигналов
+        from crm2.db.auto_migrate import ensure_schedule_schema
+        ensure_schedule_schema()  # создаст таблицы и посеет, если пусто
+
         await dp.start_polling(bot)
     except KeyboardInterrupt:
         logging.info("Получен KeyboardInterrupt — завершаем...")
