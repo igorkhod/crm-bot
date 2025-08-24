@@ -26,6 +26,10 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from crm2.handlers import start, consent
 from aiogram.fsm.context import FSMContext
+from crm2.db.migrate_admin import ensure_admin_schema
+from crm2.handlers.admin.panel import router as admin_panel_router
+from crm2.handlers.admin.broadcast import router as admin_broadcast_router
+
 
 
 
@@ -102,7 +106,10 @@ dp.include_router(registration.router)
 dp.include_router(auth.router)  # <— новое
 dp.include_router(info.router)  # ← подключение
 dp.include_router(schedule_router)
+dp.include_router(admin_panel_router)
+dp.include_router(admin_broadcast_router)
 
+ensure_admin_schema()
 
 @dp.message(F.text == "/start")
 async def cmd_start(message: Message, state: FSMContext):
