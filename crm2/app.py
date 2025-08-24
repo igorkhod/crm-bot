@@ -185,6 +185,16 @@ async def main() -> None:
         # просто стартуем поллинг; на Windows без сигналов
         from crm2.db.auto_migrate import ensure_schedule_schema
         ensure_schedule_schema()  # создаст таблицы и посеет, если пусто
+        from crm2.db.auto_migrate import ensure_schedule_schema, apply_topic_overrides
+
+        ensure_schedule_schema()
+
+        apply_topic_overrides({
+            "ПТГ-2": {
+                "title": "ПТГ на основе метода работы с 4х-мерным пространством",
+                "annotation": "Интегральные матрицы для всех уровней живой системы человек за все воплощения; Работа с Родом; Центры сознания; Эндокринные системы для каждого квантового уровня; Уровни искажения схем поведения; Матрицы ДЕЛА; гармонзация души; гармонизация сознания; гармонизация духа; Аспект троичности; Кундалини; Время; Мозг;"
+            }
+        })
 
         await dp.start_polling(bot)
     except KeyboardInterrupt:

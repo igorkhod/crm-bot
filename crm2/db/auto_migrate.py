@@ -87,3 +87,19 @@ def ensure_schedule_schema(
             )
         else:
             log.info("[AUTO-MIGRATE] session_days has %s upcoming record(s), seeding skipped.", future_count)
+
+
+def apply_topic_overrides(overrides: dict[str, dict[str, str]]) -> None:
+    """
+    Точечно правит title/annotation по коду темы.
+    Идемпотентно: можно вызывать при каждом старте.
+    """
+    from .core import get_db_connection
+    with get_db_connection() as con:
+        cur = con.cursor()
+        for code, fields in overrides.items():
+            if "title" in fields:
+                cur.execute("UPDATE topics SET title=? WHERE code=?", (fields["title"], code))
+            if "annotation" in fields:
+                cur.execute("UPDATE topics SET annotation=? WHERE code=?", (fields["annotation"], code))
+        con.commit()
