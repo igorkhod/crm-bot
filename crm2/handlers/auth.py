@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import re
-import hmac
 from typing import Optional
 
 from aiogram import F, Router
@@ -14,7 +14,6 @@ from aiogram.types import Message
 from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_user_stream_title_by_tg
 from crm2.handlers_schedule import send_schedule_keyboard
-from crm2.keyboards import role_kb
 
 router = Router(name="auth")
 
@@ -34,11 +33,11 @@ def _normalize(s: str) -> str:
     """Убираем неразрывные/невидимые пробелы и обрезаем края."""
     if s is None:
         return ""
-    s = (s.replace("\u00A0", " ")   # NBSP
-           .replace("\uFEFF", "")   # BOM
-           .replace("\u200B", "")
-           .replace("\u200C", "")
-           .replace("\u200D", ""))
+    s = (s.replace("\u00A0", " ")  # NBSP
+         .replace("\uFEFF", "")  # BOM
+         .replace("\u200B", "")
+         .replace("\u200C", "")
+         .replace("\u200D", ""))
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
@@ -46,8 +45,10 @@ def _normalize(s: str) -> str:
 # bcrypt (если в БД $2b$… — сверяем через bcrypt, иначе обычной строкой)
 _BCRYPT_RE = re.compile(r"^\$2[aby]?\$\d{2}\$[./A-Za-z0-9]{53}$")
 
+
 def _is_bcrypt(s: str) -> bool:
     return bool(s) and bool(_BCRYPT_RE.match(s))
+
 
 def _check_password(db_pw: str, input_pw: str) -> bool:
     raw_db = str(db_pw or "")
@@ -86,9 +87,9 @@ def _bind_telegram_id(user_id: int, tg_id: int) -> None:
         con.execute(
             """
             UPDATE users
-               SET telegram_id = ?
-             WHERE id = ?
-               AND (telegram_id IS NULL OR telegram_id <> ?)
+            SET telegram_id = ?
+            WHERE id = ?
+              AND (telegram_id IS NULL OR telegram_id <> ?)
             """,
             (tg_id, user_id, tg_id),
         )
@@ -173,7 +174,11 @@ async def login_password(message: Message, state: FSMContext) -> None:
 
     full_name = _human_name(user)
     role = _user_role(user)
-
+    try:
+        stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
+    except Exception:
+        logging.exception("stream title resolve failed")
+        stream_id, stream_title = None, None
 
     # --- Показать поток/роль и стартовое сообщение ---
     stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
@@ -196,6 +201,3 @@ async def login_password(message: Message, state: FSMContext) -> None:
         logging.exception("send_schedule_keyboard failed")
 
     await state.clear()
-
-
-

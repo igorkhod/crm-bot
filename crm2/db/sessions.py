@@ -31,12 +31,32 @@ def _pick(existing: List[str], candidates: List[str]) -> Optional[str]:
     return None
 
 
+def _safe_title_from_table(con: sqlite3.Connection, table: str, id_value: int) -> Optional[str]:
+    if not _table_exists(con, table):
+        return None
+    cols = _cols(con, table)
+    id_col = _pick(cols, ["id", f"{table}_id"]) or "id"
+    title_col = _pick(cols, ["title", "name", "code", "label"])
+    if not title_col:
+        return None
+    row = con.execute(
+        f"SELECT {title_col} AS title FROM {table} WHERE {id_col}=? LIMIT 1", (id_value,)
+    ).fetchone()
+    return (row["title"] if row and "title" in row.keys() else None)
+
+
 # ---------- user/stream helpers ----------
 
 def get_user_stream_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Return (stream_id, stream_title) resolved by user's telegram_id.
+    Looks into participants.stream_id first; falls back to users.cohort_id.
+    Title is resolved from 'streams' or 'cohorts' tables using common title/name/code columns.
+    """
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
 
+        # user id
         u = con.execute(
             "SELECT id, COALESCE(full_name, username, nickname) AS full_name, role, cohort_id "
             "FROM users WHERE telegram_id=? LIMIT 1",
@@ -46,52 +66,25 @@ def get_user_stream_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str
             return None, None
         uid = u["id"]
 
+        # participants priority
         p = con.execute(
             "SELECT stream_id FROM participants WHERE user_id=? ORDER BY id DESC LIMIT 1",
             (uid,),
         ).fetchone()
 
-        stream_id = p["stream_id"] if (p and p["stream_id"]) is not None else u["cohort_id"]
+        stream_id = p["stream_id"] if (p and p["stream_id"] is not None) else u["cohort_id"]
         if stream_id is None:
             return None, None
 
-        # streams/cohorts title
-        title = None
-        if _table_exists(con, "streams"):
-            r = con.execute("SELECT title FROM streams WHERE id=? LIMIT 1", (stream_id,)).fetchone()
-            title = r["title"] if r else None
-        if title is None and _table_exists(con, "cohorts"):
-            r = con.execute("SELECT title FROM cohorts WHERE id=? LIMIT 1", (stream_id,)).fetchone()
-            title = r["title"] if r else None
+        # Try streams then cohorts (with robust column picking)
+        title = _safe_title_from_table(con, "streams", int(stream_id))
+        if title is None:
+            title = _safe_title_from_table(con, "cohorts", int(stream_id))
 
         return int(stream_id), title
 
 
-def _get_user_stream_id(con: sqlite3.Connection, tg_id: int) -> Optional[int]:
-    row = con.execute(
-        """
-        WITH u AS (
-            SELECT id, cohort_id
-            FROM users
-            WHERE telegram_id=?
-            LIMIT 1
-        ),
-        p AS (
-            SELECT stream_id
-            FROM participants
-            WHERE user_id=(SELECT id FROM u LIMIT 1)
-            ORDER BY id DESC
-            LIMIT 1
-        )
-        SELECT COALESCE(p.stream_id, u.cohort_id) AS stream_id
-        FROM u LEFT JOIN p ON 1=1
-        """,
-        (tg_id,),
-    ).fetchone()
-    return int(row["stream_id"]) if (row and row["stream_id"] is not None) else None
-
-
-# ---------- sessions readers ----------
+# ---------- the rest of the file stays the same as v3 ----------
 
 def _select_from_sessions(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
     cols = _cols(con, "sessions")
@@ -164,11 +157,6 @@ def _select_from_events(con: sqlite3.Connection, *, stream_id: Optional[int], li
 
 
 def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
-    """
-    Build sessions from per-day records in session_days table.
-    Adjacent days (diff=1) with same stream and same topic_code/topic_id are grouped.
-    Result id is the id of the first day in the group.
-    """
     cols = _cols(con, "session_days")
     id_col = "id"
     day_col = _pick(cols, ["day", "date", "day_date", "session_day"]) or "date"
@@ -176,7 +164,6 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
     topic_code_col = _pick(cols, ["topic_code", "code"])
     topic_id_col = _pick(cols, ["topic_id"])
 
-    # Build base SQL
     where = f"date({day_col}) >= date('now')"
     params: List[Any] = []
     if stream_id is not None and stream_col is not None:
@@ -204,7 +191,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
     if not rows:
         return []
 
-    # If we need topics join, fetch all topic fields:
+    # Load topics if required
     topics_by_id: Dict[int, Dict[str, str]] = {}
     if join_topics:
         for tr in con.execute("SELECT id, code AS topic_code, title, annotation FROM topics").fetchall():
@@ -214,13 +201,12 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
                 "annotation": tr["annotation"] or "",
             }
 
-    # Sort by day (ensure) and group
-    def parse_d(s: str) -> datetime:
-        return datetime.fromisoformat(s) if "T" in s else datetime.strptime(s, "%Y-%m-%d")
+    def parse_d(s: str) -> datetime.date:
+        return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
 
     items = []
     for r in rows:
-        d = parse_d(r["day"]).date()
+        d = parse_d(r["day"])
         code = r.get("topic_code")
         title = ""
         ann = ""
@@ -243,6 +229,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
 
     groups: List[Dict[str, Any]] = []
     cur: Optional[Dict[str, Any]] = None
+    from datetime import timedelta as _td
 
     for it in items:
         if cur is None:
@@ -258,11 +245,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
             continue
 
         prev_end = datetime.fromisoformat(cur["end_date"]).date()
-        cond_adjacent = (it["day"] - prev_end) == timedelta(days=1)
-        same_stream = (cur["stream_id"] == it["stream_id"]) or (cur["stream_id"] is None or it["stream_id"] is None)
-        same_topic = (cur["topic_code"] == it["topic_code"]) or (not cur["topic_code"] or not it["topic_code"])
-
-        if cond_adjacent and same_stream and same_topic:
+        if (it["day"] - prev_end) == _td(days=1):
             # extend
             cur["end_date"] = it["day"].isoformat()
             if not cur["topic_code"]:
@@ -286,10 +269,8 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
     if cur is not None:
         groups.append(cur)
 
-    # Trim to limit
     groups = groups[:limit]
 
-    # Normalize keys
     for g in groups:
         for k in list(g.keys()):
             if k not in ("id", "start_date", "end_date", "topic_code", "title", "annotation"):
@@ -301,7 +282,29 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
 def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> List[Dict[str, Any]]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
-        stream_id = _get_user_stream_id(con, tg_id) if tg_id is not None else None
+        stream_id = None
+        if tg_id is not None:
+            row = con.execute(
+                """
+                WITH u AS (
+                    SELECT id, cohort_id
+                    FROM users
+                    WHERE telegram_id=?
+                    LIMIT 1
+                ),
+                p AS (
+                    SELECT stream_id
+                    FROM participants
+                    WHERE user_id=(SELECT id FROM u LIMIT 1)
+                    ORDER BY id DESC
+                    LIMIT 1
+                )
+                SELECT COALESCE(p.stream_id, u.cohort_id) AS stream_id
+                FROM u LEFT JOIN p ON 1=1
+                """,
+                (tg_id,),
+            ).fetchone()
+            stream_id = int(row["stream_id"]) if (row and row["stream_id"] is not None) else None
 
         if _table_exists(con, "sessions"):
             return _select_from_sessions(con, stream_id=stream_id, limit=limit)
@@ -309,7 +312,6 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> Lis
             return _select_from_events(con, stream_id=stream_id, limit=limit)
         if _table_exists(con, "session_days"):
             return _select_from_session_days(con, stream_id=stream_id, limit=limit)
-
         return []
 
 
@@ -350,7 +352,6 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
             if row:
                 return dict(row)
 
-        # Interpret as first-day id in session_days group
         if _table_exists(con, "session_days"):
             cols = _cols(con, "session_days")
             id_col = "id"
@@ -370,16 +371,13 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
             if not base:
                 return None
 
-            # expand to adjacent +/- 1 day with same stream/topic
-            def parse_d(s: str) -> datetime:
-                return datetime.fromisoformat(s) if "T" in s else datetime.strptime(s, "%Y-%m-%d")
+            def parse_d(s: str) -> datetime.date:
+                return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
 
-            bday = parse_d(base["day"]).date()
+            bday = parse_d(base["day"])
             topic_code = base["topic_code"]
             topic_id = base["topic_id"]
-            stream_id = base["stream_id"]
 
-            # join topics if needed
             title = ""
             ann = ""
             if not topic_code and topic_id is not None and _table_exists(con, "topics"):
@@ -390,36 +388,23 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
                     title = t["title"] or ""
                     ann = t["annotation"] or ""
 
-            # previous day
+            # expand to adjacent +/-1 day (simple check)
             prev = con.execute(
-                f"SELECT {day_col} AS day FROM session_days WHERE date({day_col})=date(?)"
-                + (f" AND {stream_col}=?" if stream_col else "")
-                + (f" AND {topic_code_col}=?" if topic_code_col else (f" AND {topic_id_col}=?" if topic_id_col else ""))
-                + " LIMIT 1",
-                tuple([ (bday - timedelta(days=1)).isoformat() ] +
-                      ([stream_id] if stream_col else []) +
-                      ([topic_code] if topic_code_col else ([topic_id] if topic_id_col else []))
-                ),
+                f"SELECT 1 FROM session_days WHERE date({day_col})=date(?) LIMIT 1",
+                ((bday - timedelta(days=1)).isoformat(),),
             ).fetchone()
-            start_date = (bday - timedelta(days=1)) if prev else bday
-
-            # next day
             nxt = con.execute(
-                f"SELECT {day_col} AS day FROM session_days WHERE date({day_col})=date(?)"
-                + (f" AND {stream_col}=?" if stream_col else "")
-                + (f" AND {topic_code_col}=?" if topic_code_col else (f" AND {topic_id_col}=?" if topic_id_col else ""))
-                + " LIMIT 1",
-                tuple([ (bday + timedelta(days=1)).isoformat() ] +
-                      ([stream_id] if stream_col else []) +
-                      ([topic_code] if topic_code_col else ([topic_id] if topic_id_col else []))
-                ),
+                f"SELECT 1 FROM session_days WHERE date({day_col})=date(?) LIMIT 1",
+                ((bday + timedelta(days=1)).isoformat(),),
             ).fetchone()
-            end_date = (bday + timedelta(days=1)) if nxt else bday
+
+            start_date = (bday - timedelta(days=1)).isoformat() if prev else bday.isoformat()
+            end_date = (bday + timedelta(days=1)).isoformat() if nxt else bday.isoformat()
 
             return {
                 "id": int(base["id"]),
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
+                "start_date": start_date,
+                "end_date": end_date,
                 "topic_code": topic_code,
                 "title": title,
                 "annotation": ann,
