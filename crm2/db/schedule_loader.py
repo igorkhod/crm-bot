@@ -24,8 +24,12 @@ _COL_SYNONYMS = {
     "stream": ["stream_id", "cohort_id", "cohort", "поток", "группа"],
 }
 
+ISO_RE = re.compile(r"^\s*\d{4}-\d{2}-\d{2}\s*$")  # YYYY-MM-DD
+
+
 def _norm(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_а-яА-Я\-]+", "_", s.strip().lower())
+
 
 def _pick(mapping: Dict[str, int], names: List[str]) -> Optional[int]:
     for n in names:
@@ -33,14 +37,16 @@ def _pick(mapping: Dict[str, int], names: List[str]) -> Optional[int]:
             return mapping[n]
     return None
 
+
 def _detect_stream_from_filename(path: Path) -> Optional[int]:
-    m = re.search(r"(\d+)\s*_cohort", path.stem)
+    m = re.search(r"(\\d+)\\s*_cohort", path.stem)
     if m:
         try:
             return int(m.group(1))
         except Exception:
             return None
     return None
+
 
 # --------- reader ---------
 
@@ -51,6 +57,7 @@ class Row:
     title: Optional[str]
     annotation: Optional[str]
     stream_id: Optional[int]
+
 
 def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
     try:
@@ -65,7 +72,7 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
         log.error("Failed to read %s: %s", path, e)
         return
 
-    cols_norm_map: Dict[str, int] = { _norm(c): i for i, c in enumerate(df.columns.astype(str).tolist()) }
+    cols_norm_map: Dict[str, int] = {_norm(c): i for i, c in enumerate(df.columns.astype(str).tolist())}
     log.info("[SCHEDULE] %s columns: %s", path.name, list(cols_norm_map.keys()))
 
     # pick indices
@@ -79,13 +86,21 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
 
     # helper
     def _to_date(v):
-        d = pd.to_datetime(v, errors="coerce", dayfirst=True)
+        import pandas as pd  # local import to avoid mypy noise
+        if v is None:
+            return None
+        s = str(v).strip()
+        # ISO формат — парсим строго без dayfirst (устраняет предупреждение pandas)
+        if ISO_RE.match(s):
+            d = pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
+        else:
+            d = pd.to_datetime(s, errors="coerce", dayfirst=True)
         return None if pd.isna(d) else d.normalize()
 
     # iterate rows
     for _, row in df.iterrows():
         # determine date(s)
-        dates_list = []
+        dates_list: List[str] = []
 
         if idx_start is not None or idx_end is not None:
             v_start = row.iloc[idx_start] if idx_start is not None else None
@@ -105,13 +120,13 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
             if d is not None:
                 dates_list.append(d.strftime("%Y-%m-%d"))
         else:
-            # Try auto-detect: find the first column that looks like dates
+            # Auto-detect column with most date-like values (без dayfirst — тут лишь эвристика)
             try:
                 import pandas as pd
                 best_idx, best_hits = None, -1
                 for i in range(df.shape[1]):
                     series = df.iloc[:, i]
-                    parsed = pd.to_datetime(series, errors="coerce", dayfirst=True)
+                    parsed = pd.to_datetime(series, errors="coerce")
                     hits = int(parsed.notna().sum())
                     if hits > best_hits:
                         best_idx, best_hits = i, hits
@@ -131,7 +146,13 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
             if idx is None:
                 return None
             v = row.iloc[idx]
-            return None if (v is None or (hasattr(v, "isna") and v.isna())) else str(v).strip()
+            try:
+                import pandas as pd
+                if pd.isna(v):  # type: ignore[attr-defined]
+                    return None
+            except Exception:
+                pass
+            return str(v).strip()
 
         code = _cell(idx_code)
         title = _cell(idx_title)
@@ -150,6 +171,7 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
 
         for ds in dates_list:
             yield Row(date=ds, code=code, title=title, annotation=ann, stream_id=stream_id)
+
 
 # --------- sync into DB ---------
 
@@ -188,6 +210,7 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
                     """,
                     (r.date, r.stream_id, topic_id, r.code),
                 )
+                # rowcount может быть 1 и при INSERT, и при UPDATE — нам подходит
                 if cur.rowcount is not None and cur.rowcount > 0:
                     added += cur.rowcount
         con.commit()
