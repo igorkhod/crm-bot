@@ -78,3 +78,8 @@ async def on_session_click(callback: CallbackQuery):
 
     await callback.message.answer(text)
     await callback.answer()
+
+
+# Export alias for compatibility with app.py
+schedule_router = router
+__all__ = ['schedule_router', 'router', 'send_schedule_keyboard']
