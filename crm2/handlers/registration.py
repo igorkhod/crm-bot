@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-
+import re
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -18,7 +18,7 @@ from passlib.hash import bcrypt
 
 from crm2.db.core import get_db_connection
 from crm2.db.sqlite import DB_PATH  # noqa: F401  # для диагностики/совместимости
-from crm2.handlers.consent import has_consent, set_consent, consent_kb, CONSENT_TEXT
+from crm2.handlers.consent import has_consent, consent_kb, CONSENT_TEXT
 
 router = Router()
 DEBUG_MODE = False  # в проде держать False
@@ -33,6 +33,8 @@ class RegistrationFSM(StatesGroup):
     nickname = State()
     password = State()
     password_confirm = State()
+    phone = State()  # ← добавили
+    email = State()  # ← добавили
     cohort = State()
     debug_tg_id = State()  # как было
 
@@ -126,6 +128,9 @@ def _ensure_min_schema() -> None:
             )
             """
         )
+        cur.execute("INSERT OR IGNORE INTO cohorts(name) VALUES (?)", ("09.2023",))
+        cur.execute("INSERT OR IGNORE INTO cohorts(name) VALUES (?)", ("04.2025",))
+
         conn.commit()
 
 
@@ -271,6 +276,41 @@ async def reg_password_confirm(message: Message, state: FSMContext):
         await message.answer("❌ Пароли не совпадают. Введите пароль ещё раз:")
         await state.set_state(RegistrationFSM.password)
         return
+    await state.set_state(RegistrationFSM.phone)
+    await message.answer(
+        "Введите ваш телефон (например, +7 900 123-45-67):",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    @router.message(RegistrationFSM.phone)
+    async def reg_phone(message: Message, state: FSMContext):
+        phone = (message.text or "").strip()
+        digits = re.sub(r"\D", "", phone)
+        # минимальная валидация: хотя бы 10 цифр
+        if len(digits) < 10:
+            await message.answer("Похоже, телефон некорректный. Введите ещё раз, например: +7 900 123-45-67.")
+            return
+        await state.update_data(phone=phone)
+        await state.set_state(RegistrationFSM.email)
+        await message.answer("Введите e-mail:", reply_markup=ReplyKeyboardRemove())
+
+    EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    @router.message(RegistrationFSM.email)
+    async def reg_email(message: Message, state: FSMContext):
+        email = (message.text or "").strip()
+        if not EMAIL_RE.match(email):
+            await message.answer("Похоже, e-mail некорректный. Введите ещё раз.")
+            return
+        await state.update_data(email=email)
+
+        await state.set_state(RegistrationFSM.cohort)
+
+        cohorts = get_cohorts()
+        rows = [[KeyboardButton(text=name)] for _, name in cohorts]
+        rows.append([KeyboardButton(text=NO_COHORT)])
+        kb = ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+        await message.answer("Выберите поток:", reply_markup=kb)
 
     await state.set_state(RegistrationFSM.cohort)
 
@@ -314,7 +354,9 @@ async def reg_cohort(message: Message, state: FSMContext):
                 nickname  = ?,
                 password  = ?,
                 cohort_id = ?,
-                role      = COALESCE(role, 'user')
+                role      = COALESCE(role, 'user'),
+                phone=?,
+                email=?
             WHERE telegram_id = ?
             """,
             (data["full_name"], data["nickname"], password_hash, cohort_id, tg_id),
@@ -324,10 +366,12 @@ async def reg_cohort(message: Message, state: FSMContext):
         if cur.rowcount == 0:
             cur.execute(
                 """
-                INSERT INTO users (telegram_id, username, nickname, password, full_name, role, cohort_id)
-                VALUES (?, ?, ?, ?, ?, 'user', ?)
+                INSERT INTO users               
+                    (telegram_id, username, nickname, password, full_name, role, cohort_id, phone, email)
+                VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?)
                 """,
                 (tg_id, data["nickname"], data["nickname"], password_hash, data["full_name"], cohort_id),
+                data.get("phone"), data.get("email")
             )
 
         # синхронизируем участника с выбранным потоком
