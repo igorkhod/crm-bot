@@ -174,17 +174,16 @@ async def login_password(message: Message, state: FSMContext) -> None:
     full_name = _human_name(user)
     role = _user_role(user)
 
-    stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
+stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
+stream_line = (
+    f"\nПоток: {stream_title or ('#' + str(stream_id)) if stream_id else '— не выбран —'}"
+)
 
-    text = (
-        "✅ Вход выполнен.\n"
-        f"Вы вошли как: {full_name}\n"
-        f"Роль: {role}"
-    )
-    if stream_title:
-        text += f" Поток: {stream_title}"
+text = (
+    "✅ Вход выполнен.\n"
+    f"Вы вошли как: {full_name}\n"
+    f"Роль: {role}"
+    f"{stream_line}"
+)
 
-    await message.answer(text, reply_markup=role_kb(role))
-    await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
-    await state.clear()
+
