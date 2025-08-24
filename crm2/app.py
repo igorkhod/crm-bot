@@ -196,6 +196,16 @@ async def main() -> None:
             }
         })
 
+        from crm2.db.auto_migrate import ensure_schedule_schema
+        from crm2.db.schedule_loader import sync_schedule_from_files
+
+        ensure_schedule_schema()
+        sync_schedule_from_files([
+            "schedule_2025_1_cohort.xlsx",
+            "schedule_2025_2_cohort.xlsx",
+        ])
+
+
         await dp.start_polling(bot)
     except KeyboardInterrupt:
         logging.info("Получен KeyboardInterrupt — завершаем...")
