@@ -15,6 +15,19 @@ def admin_menu_kb():
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+# --- ВХОД В АДМИНКУ ПО СООБЩЕНИЮ (reply-кнопка) ---
+@router.message(F.text.in_({"⚙️ Админ", "🛠 Панель администратора", "/admin", "Админ"}))
+async def admin_entry_msg(msg: Message):
+    await msg.answer("Админ-панель:", reply_markup=admin_menu_kb())
+
+
+# --- (опционально) ВХОД ПО INLINE-КНОПКЕ ---
+@router.callback_query(F.data.in_({"adm:panel", "adm:open"}))
+async def admin_entry_cb(cb: CallbackQuery):
+    await cb.message.answer("Админ-панель:", reply_markup=admin_menu_kb())
+    await cb.answer()
+
+
 @router.message(F.text.in_({"⚙️ Админ", "/admin", "Админ"}))
 async def admin_entry(msg: Message):
     await msg.answer("Админ-панель:", reply_markup=admin_menu_kb())
