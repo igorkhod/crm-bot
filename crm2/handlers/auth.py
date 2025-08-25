@@ -1,3 +1,4 @@
+from crm2.keyboards import role_kb
 from __future__ import annotations
 
 import asyncio
@@ -201,3 +202,10 @@ async def login_password(message: Message, state: FSMContext) -> None:
         logging.exception("send_schedule_keyboard failed")
 
     await state.clear()
+
+
+async def _show_role_keyboard(message, role: str):
+    try:
+        await message.answer(f"Ваш кабинет. Роль: {role}", reply_markup=role_kb(role))
+    except Exception:
+        pass
