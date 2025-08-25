@@ -1,38 +1,39 @@
-#
 # === Файл: crm2/app.py
-# Аннотация: модуль CRM, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование, загрузка конфигурации из .env. Внутри функции: _get_role_from_db, cmd_start, cmd_home, main.
-# Добавлено автоматически 2025-08-21 05:43:17
+# Назначение: Точка входа бота (aiogram v3). Инициализация БД, подключение роутеров, запуск polling.
+# Коротко: схемы БД (users/consents, admin, schedule), синхронизация расписания из XLSX,
+#          роутеры: start, consent, registration, auth, info, schedule, admin (panel/users/schedule/logs/broadcast).
 
-from __future__ import annotations  # ← ДОЛЖНО быть первым (после докстринга/комментариев)
+from __future__ import annotations
 
 import logging
 import os
-import sqlite3  # ← добавили
+import sqlite3
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
-from dotenv import load_dotenv
-
-from crm2.db.sqlite import DB_PATH  # ← добавили
-from crm2.db.sqlite import ensure_schema
-from crm2.handlers import auth  # <— новое
-from crm2.handlers import registration
-from crm2.keyboards import guest_start_kb, role_kb
-from crm2.routers import start
-from crm2.handlers import info  # ← импорт
-from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
-# from crm2.config import TELEGRAM_TOKEN
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from crm2.handlers import start, consent
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from dotenv import load_dotenv
+
+from crm2.db.sqlite import DB_PATH, ensure_schema
 from crm2.db.migrate_admin import ensure_admin_schema
+from crm2.db.auto_migrate import ensure_schedule_schema
+from crm2.db.schedule_loader import sync_schedule_from_files
+
+# Роутеры (оставляем только актуальные модули из crm2.handlers.*)
+from crm2.handlers import start, consent, registration, auth, info
+from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
+
+# Админ-панель
 from crm2.handlers.admin.panel import router as admin_panel_router
-from crm2.handlers.admin.broadcast import router as admin_broadcast_router
+from crm2.handlers.admin.users import router as admin_users_router
+from crm2.handlers.admin.schedule import router as admin_schedule_router
+from crm2.handlers.admin.logs import router as admin_logs_router
+from crm2.handlers.admin.broadcast import router as admin_broadcast_router  # мастер-рассылки
 
 
-
-
+# === Утилиты для ролей/согласия (минимум: чтение роли)
 def _get_role_from_db(tg_id: int) -> str:
     """Без автоклассификации: читаем роль из БД как есть."""
     with sqlite3.connect(DB_PATH) as conn:
@@ -43,129 +44,58 @@ def _get_role_from_db(tg_id: int) -> str:
         return (row["role"] if row and row["role"] else "curious")
 
 
-def _has_consent(tg_id: int) -> bool:
-    with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute(
-            "SELECT given FROM consents WHERE telegram_id=?", (tg_id,)
-        ).fetchone()
-        return bool(row and row[0])
-
-def _set_consent(tg_id: int, given: bool = True) -> None:
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-            INSERT INTO consents (telegram_id, given)
-            VALUES (?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET given=excluded.given, ts=CURRENT_TIMESTAMP
-            """,
-            (tg_id, 1 if given else 0),
-        )
-        conn.commit()
-
-def _consent_text() -> str:
-    return (
-        "При отправке номера телефона и email при регистрации вы даёте согласие "
-        "на обработку персональных данных https://krasnpsytech.ru/ZQFHN32\n"
-        "Нажимая на кнопку «Соглашаюсь», вы соглашаетесь получать информационные "
-        "сообщения. Отказаться можно в любой момент 👌"
-    )
-
-def _consent_kb():
-    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Соглашаюсь")],
-            [KeyboardButton(text="📖 О проекте")],
-        ],
-        resize_keyboard=True,
-    )
-
-
+# === Инициализация окружения и логгинга
 load_dotenv()
-
-ensure_schema()
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN не задан в окружении (.env)")
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-bot = Bot(
-    TELEGRAM_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-)
-
+# === Бот/диспетчер
+bot = Bot(TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
+# === Роутеры
 dp.include_router(consent.router)
 dp.include_router(start.router)
 dp.include_router(registration.router)
-dp.include_router(auth.router)  # <— новое
-dp.include_router(info.router)  # ← подключение
+dp.include_router(auth.router)
+dp.include_router(info.router)
 dp.include_router(schedule_router)
 dp.include_router(admin_panel_router)
+dp.include_router(admin_users_router)
+dp.include_router(admin_schedule_router)
+dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
 
-ensure_admin_schema()
 
-@dp.message(F.text == "/start")
-async def cmd_start(message: Message, state: FSMContext):
-    # Обнуляем все «следы» прошлых сессий
-    await state.clear()
-
-    # Никого не «узнаём»: до входа все — гости
-    await message.answer(
-        "Добро пожаловать в CRM2!\nВы гость. Выберите действие:",
-        reply_markup=guest_start_kb(),  # из твоего keyboards.py (3 кнопки)
-    )
-
-
-# было: отправляли «Спасибо!…»
-# @dp.message(F.text == "Соглашаюсь")
-# async def agree(message: Message, state: FSMContext):
-#     _set_consent(message.from_user.id, True)
-#     # избегаем циклического импорта: берём класс FSM внутри функции
-#     from crm2.handlers.registration import RegistrationFSM
-#     from aiogram.types import ReplyKeyboardRemove
-#
-#     # сразу продолжаем регистрацию
-#     await state.set_state(RegistrationFSM.full_name)
-#     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-
-
-# @dp.message(F.text == "Соглашаюсь")
-# async def agree(message: Message):
-#     _set_consent(message.from_user.id, True)
-#     await message.answer("app.py Спасибо! Доступ открыт. Нажмите /start, чтобы продолжить.")
-
-
+# === Кабинет пользователя
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))
 async def cmd_home(message: Message):
-    role = _get_role_from_db(message.from_user.id)  # только чтение
+    role = _get_role_from_db(message.from_user.id)
     if role in (None, "", "curious"):
+        from crm2.keyboards import guest_start_kb
         await message.answer(
             "Вы ещё не авторизованы. Войдите или зарегистрируйтесь:",
             reply_markup=guest_start_kb(),
         )
     else:
-        await message.answer(
-            f"Ваш кабинет. Роль: {role}",
-            reply_markup=role_kb(role),
-        )
-    # добавить ниже:
-    from crm2.handlers_schedule import send_schedule_keyboard
+        from crm2.keyboards import role_kb
+        await message.answer(f"Ваш кабинет. Роль: {role}", reply_markup=role_kb(role))
+
     await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
 
 
 async def main() -> None:
-    # мягкий запуск: сообщаем админу (если указан)
-    #  стартовый логгинг
-    import os, logging, hashlib, inspect
-
+    # Диагностика сборки
+    import hashlib, inspect
     try:
         import crm2.handlers_schedule as hs
         hs_path = inspect.getfile(hs)
@@ -180,32 +110,33 @@ async def main() -> None:
                     os.getenv("RENDER_GIT_BRANCH", "<local>"))
     logging.warning("[DIAG] handlers_schedule=%s sha=%s", hs_path, hs_sha)
 
-    # === конец стартового логгинга
+    # Схемы БД
+    ensure_schema()          # users/consents
+    ensure_admin_schema()    # admin-таблицы
+    ensure_schedule_schema() # topics/session_days
 
+    # Импорт расписания из XLSX (путь в корне И/ИЛИ в crm2/data)
+    sync_schedule_from_files([
+        "schedule_2025_1_cohort.xlsx",
+        "schedule_2025_2_cohort.xlsx",
+        "crm2/data/schedule 2025 1 cohort.xlsx",
+        "crm2/data/schedule 2025 2 cohort.xlsx",
+        "crm2/data/schedule_2025_1_cohort.xlsx",
+        "crm2/data/schedule_2025_2_cohort.xlsx",
+    ])
+
+    # Старт
     if ADMIN_ID:
         try:
-            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен! Выберите в меню команду /start для начала работы.")
+            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен!")
         except Exception as e:
             logging.error(f"Не удалось написать админу при старте: {e}")
 
     try:
-        # просто стартуем поллинг; на Windows без сигналов
-        from crm2.db.auto_migrate import ensure_schedule_schema
-        from crm2.db.schedule_loader import sync_schedule_from_files
-
-        # --- инициализация расписания (один раз перед стартом бота) ---
-        ensure_schedule_schema()
-        sync_schedule_from_files([
-            "schedule_2025_1_cohort.xlsx",
-            "schedule_2025_2_cohort.xlsx",
-        ])
-        # --- конец инициализации ---
-
         await dp.start_polling(bot)
     except KeyboardInterrupt:
-        logging.info("Получен KeyboardInterrupt — завершаем...")
+        logging.info("KeyboardInterrupt — завершаем...")
     finally:
-        # уведомление админу и корректное закрытие сессии при любом исходе
         if ADMIN_ID:
             try:
                 await bot.send_message(int(ADMIN_ID), "⛔ Бот остановлен.")
