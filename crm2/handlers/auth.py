@@ -198,6 +198,7 @@ async def login_password(message: Message, state: FSMContext) -> None:
         f"Роль: {role}"
         f"{stream_line}"
     )
+    from crm2.keyboards import role_kb
     await message.answer("Меню", reply_markup=role_kb(role or "user"))
 
     # --- Показать ближайшее занятие и клавиатуру расписания ---
