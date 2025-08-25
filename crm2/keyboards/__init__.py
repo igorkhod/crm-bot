@@ -1,10 +1,9 @@
-#
-from .schedule import build_schedule_keyboard, format_range
-from .main_menu import guest_start_kb, role_kb
+# crm2/keyboards/__init__.py
+# Пакет клавиатур. Реализация в ._impl и вспомогательные сборщики в .schedule.
+# Здесь экспортируем всё, что может понадобиться внешним модулям, чтобы
+# импорты были стабильными и без циклов.
 
-__all__ = [
-    "build_schedule_keyboard",
-    "format_range",
-    "guest_start_kb",
-    "role_kb",
-]
+from ._impl import guest_start_kb, role_kb, guest_kb
+from .schedule import format_range, build_schedule_keyboard
+
+__all__ = ['guest_start_kb', 'role_kb', 'guest_kb', 'format_range', 'build_schedule_keyboard']
