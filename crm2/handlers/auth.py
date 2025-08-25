@@ -1,16 +1,21 @@
-from crm2.keyboards import role_kb
-from __future__ import annotations
+# -*- coding: utf-8 -*-
+"""Хендлеры входа/авторизации."""
 
+from __future__ import annotations  # ← это должно быть первым код-оператором
+
+from aiogram import Router, F
+from aiogram.types import Message
+# ... остальные стандартные импорты ...
+from crm2.keyboards import role_kb  # ← этот импорт переносим НИЖЕ
 import asyncio
 import hmac
 import logging
 import re
 from typing import Optional
 
-from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+
 
 from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_user_stream_title_by_tg
