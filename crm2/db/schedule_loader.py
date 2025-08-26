@@ -94,7 +94,7 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
         if ISO_RE.match(s):
             d = pd.to_datetime(s, format="%Y-%m-%d", errors="coerce")
         else:
-            d = pd.to_datetime(s, errors="coerce", dayfirst=True)
+            d = pd.to_datetime(s, errors="coerce", dayfirst=False)
         return None if pd.isna(d) else d.normalize()
 
     # iterate rows

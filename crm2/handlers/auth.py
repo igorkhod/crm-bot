@@ -166,58 +166,32 @@ async def login_password(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
 
+    # Авторизация (твоя функция остаётся той же)
     user = await asyncio.to_thread(_fetch_user_by_credentials, nickname, password)
     if not user:
         await message.answer("❌ Неверный никнейм или пароль. Попробуйте ещё раз: /login")
         await state.clear()
         return
 
-    tg_id = message.from_user.id
-    try:
-        await asyncio.to_thread(_bind_telegram_id, int(user["id"]), tg_id)
-    except Exception:
-        logging.exception("failed to bind telegram id")
-
-    full_name = _human_name(user)
-    role = _user_role(user)
-    try:
-        stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
-    except Exception:
-        logging.exception("stream title resolve failed")
-        stream_id, stream_title = None, None
-
-    # --- Показать поток/роль и стартовое сообщение ---
-    stream_id, stream_title = await asyncio.to_thread(get_user_stream_title_by_tg, tg_id)
-    stream_line = (
-        f"\nПоток: {stream_title or ('#' + str(stream_id)) if stream_id else '— не выбран —'}"
-    )
-
-    text = (
-        "✅ Вход выполнен.\n"
-        f"Вы вошли как: {full_name}\n"
-        f"Роль: {role}"
-        f"{stream_line}"
-    )
-    from crm2.keyboards import role_kb
-    # стало — безопасно для dict/объекта:
+    # Универсальный доступ к полям и для dict, и для объекта
     def uget(u, key, default=None):
         return (u.get(key, default) if isinstance(u, dict) else getattr(u, key, default))
 
+    tg_id = message.from_user.id
     full_name = (uget(user, "full_name") or uget(user, "nickname") or "Гость").strip()
     role = (uget(user, "role") or "user").strip()
-    stream = uget(user, "stream_id") or uget(user, "cohort_id")  # что из этого есть в твоей схеме
+    stream = uget(user, "stream_id") or uget(user, "cohort_id")
 
     from crm2.keyboards import role_kb
 
-    greeting_lines = [
-        f"Здравствуйте, {full_name}! Выберите необходимый сервис",
-        f"Роль: {role} Поток: {stream}",
-    ]
+    # Персональное приветствие вместо "Меню"
+    lines = [f"Здравствуйте, {full_name}!", f"Роль: {role}"]
     if stream is not None:
-        greeting_lines.append()
+        lines.append(f"Поток: {stream}")
 
-    await message.answer("\n".join(greeting_lines), reply_markup=role_kb(role or "user"))
-    # --- Показать ближайшее занятие и клавиатуру расписания ---
+    await message.answer("\n".join(lines), reply_markup=role_kb(role or "user"))
+
+    # Показать ближайшее занятие и клавиатуру расписания
     try:
         await send_schedule_keyboard(message, tg_id=tg_id, limit=5)
     except Exception:
