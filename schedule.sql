@@ -1,8 +1,3 @@
-sqlite3 /var/data/crm.db
-.read /var/data/migration_2025-08-16_flows_schedule_topics.sql
-.quit
-===================================================================
-check_schedule.sql
 -- Проверка количества всех занятий
 SELECT COUNT(*) AS total_sessions FROM session_days;
 
