@@ -14,6 +14,8 @@ log = logging.getLogger(__name__)
 
 # --------- utils ---------
 
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+
 _COL_SYNONYMS = {
     "date": ["date", "day", "дата", "day_date", "session_day", "дата_занятия"],
     "start": ["start_date", "start", "начало", "дата_начала"],
@@ -188,6 +190,10 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
         cur = con.cursor()
         for f in files:
             p = Path(f)
+            if not p.exists():
+                log.warning("[SCHEDULE] skip non-existent file: %s", p)
+                continue
+
             default_stream = _detect_stream_from_filename(p)
             for r in _iter_xlsx(p, default_stream):
                 topic_id = None
@@ -208,7 +214,7 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
                         topic_id=COALESCE(excluded.topic_id, session_days.topic_id),
                         topic_code=COALESCE(excluded.topic_code, session_days.topic_code)
                     """,
-                    (r.date, r.stream_id, topic_id, r.code),
+        (r.date, r.stream_id, topic_id, r.code),
                 )
                 # rowcount может быть 1 и при INSERT, и при UPDATE — нам подходит
                 if cur.rowcount is not None and cur.rowcount > 0:
@@ -216,3 +222,24 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
         con.commit()
     log.info("[SYNC] schedule from files done; affected rows=%s", added)
     return added
+
+def list_schedule_files() -> List[str]:
+    """
+    Находит только реально существующие XLSX расписания по шаблону schedule_*_cohort.xlsx
+    в каталоге crm2/data. Возвращает список путей (str), отсортированный по имени.
+    """
+    files = sorted(PROJECT_DIR.glob("schedule_*_cohort.xlsx"))
+    if not files:
+        log.warning("[SCHEDULE] no schedule files found in %s", PROJECT_DIR)
+    return [str(p) for p in files]
+
+def sync_schedule_autodiscover() -> int:
+    """
+    Автоматически находит XLSX и загружает расписание.
+    Используй этот метод вместо ручного списка путей.
+    """
+    files = list_schedule_files()
+    if not files:
+        return 0
+    return sync_schedule_from_files(files)
+
