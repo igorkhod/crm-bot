@@ -199,15 +199,24 @@ async def login_password(message: Message, state: FSMContext) -> None:
         f"{stream_line}"
     )
     from crm2.keyboards import role_kb
-    full_name = user.full_name or user.nickname
-    stream_line = f"Поток: {user.stream_id}" if hasattr(user, "stream_id") else ""
-    await message.answer(
-        f"Здравствуйте, {full_name}!\n"
-        f"Роль: {role}\n"
-        f"{stream_line}",
-        reply_markup=role_kb(role or "user")
-    )
+    # стало — безопасно для dict/объекта:
+    def uget(u, key, default=None):
+        return (u.get(key, default) if isinstance(u, dict) else getattr(u, key, default))
 
+    full_name = (uget(user, "full_name") or uget(user, "nickname") or "Гость").strip()
+    role = (uget(user, "role") or "user").strip()
+    stream = uget(user, "stream_id") or uget(user, "cohort_id")  # что из этого есть в твоей схеме
+
+    from crm2.keyboards import role_kb
+
+    greeting_lines = [
+        f"Здравствуйте, {full_name}!",
+        f"Роль: {role}",
+    ]
+    if stream is not None:
+        greeting_lines.append(f"Поток: {stream}")
+
+    await message.answer("\n".join(greeting_lines), reply_markup=role_kb(role or "user"))
     # --- Показать ближайшее занятие и клавиатуру расписания ---
     try:
         await send_schedule_keyboard(message, tg_id=tg_id, limit=5)

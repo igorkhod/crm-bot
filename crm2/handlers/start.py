@@ -19,9 +19,7 @@ async def cmd_start(message: Message, state: FSMContext):
     # До входа с паролем — вы гость
     kb = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🔐 Войти")],
-            [KeyboardButton(text="✏️ Регистрация")],
-            [KeyboardButton(text="📖 О проекте")],
+            [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="✏️ Регистрация"), KeyboardButton(text="📖 О проекте")],
         ],
         resize_keyboard=True,
     )
