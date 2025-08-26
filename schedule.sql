@@ -1,4 +1,5 @@
 -- Включим читаемый вывод
+
 .headers on
 .mode column
 
