@@ -39,7 +39,7 @@ async def send_schedule_keyboard(message: Message, *, limit: int = 5, tg_id: int
 
     # Keyboard with all items
     await message.answer(
-        "Выберите дату занятия:",
+        "Выберите дату занятия для получения более детальной информации:",
         reply_markup=build_schedule_keyboard(sessions),
     )
 

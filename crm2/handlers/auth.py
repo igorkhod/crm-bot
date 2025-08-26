@@ -210,11 +210,11 @@ async def login_password(message: Message, state: FSMContext) -> None:
     from crm2.keyboards import role_kb
 
     greeting_lines = [
-        f"Здравствуйте, {full_name}!",
-        f"Роль: {role}",
+        f"Здравствуйте, {full_name}! Выберите необходимый сервис",
+        f"Роль: {role} Поток: {stream}",
     ]
     if stream is not None:
-        greeting_lines.append(f"Поток: {stream}")
+        greeting_lines.append()
 
     await message.answer("\n".join(greeting_lines), reply_markup=role_kb(role or "user"))
     # --- Показать ближайшее занятие и клавиатуру расписания ---
