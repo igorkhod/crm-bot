@@ -41,7 +41,7 @@ def _pick(mapping: Dict[str, int], names: List[str]) -> Optional[int]:
 
 
 def _detect_stream_from_filename(path: Path) -> Optional[int]:
-    m = re.search(r"(\\d+)\\s*_cohort", path.stem)
+    m = re.search(r"(\d+)_cohort", path.stem)
     if m:
         try:
             return int(m.group(1))
@@ -214,7 +214,7 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
                         topic_id=COALESCE(excluded.topic_id, session_days.topic_id),
                         topic_code=COALESCE(excluded.topic_code, session_days.topic_code)
                     """,
-        (r.date, r.stream_id, topic_id, r.code),
+                    (r.date, r.stream_id, topic_id, r.code),
                 )
                 # rowcount может быть 1 и при INSERT, и при UPDATE — нам подходит
                 if cur.rowcount is not None and cur.rowcount > 0:
@@ -225,9 +225,10 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
 
 def list_schedule_files() -> List[str]:
     """
-    Находит только реально существующие XLSX расписания по шаблону schedule_*_cohort.xlsx
-    в каталоге crm2/data. Возвращает список путей (str), отсортированный по имени.
+    Находит реально существующие XLSX расписания по шаблону schedule_*_cohort.xlsx
+    в корне проекта (src/). Возвращает список путей (str), отсортированный по имени.
     """
+
     files = sorted(PROJECT_DIR.glob("schedule_*_cohort.xlsx"))
     if not files:
         log.warning("[SCHEDULE] no schedule files found in %s", PROJECT_DIR)
