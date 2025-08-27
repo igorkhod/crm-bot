@@ -7,6 +7,7 @@ from aiogram.filters import StateFilter
 
 from crm2.keyboards.admin_users import users_groups_kb, users_pager_kb
 from crm2.db.users_repo import count_users, list_users
+from aiogram.exceptions import TelegramBadRequest
 
 router = Router(name="admin_users")
 
@@ -60,7 +61,20 @@ async def _show_group_page(cb_or_msg, group_key: str, page: int):
     kb = users_pager_kb(group_key, page, pages)
     # Поддержка и callback.message, и обычного message
     msg = getattr(cb_or_msg, "message", None) or cb_or_msg
-    await msg.edit_text(text, reply_markup=kb)
+    try:
+       await msg.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest as e:
+        # Если контент не изменился (например, жмём ◀️/▶️ при 1/1),
+        # просто тихо отвечаем на колбэк, чтобы не было ошибки в логах.
+        if "message is not modified" in str(e).lower():
+            # если это callback — ответим, чтобы убрать «часики»
+            if hasattr(cb_or_msg, "answer"):
+                try:
+                    await cb_or_msg.answer("Уже на этой странице")
+                except Exception:
+                    pass
+            return
+        raise
 
 
 # Выбор группы → страница 1
