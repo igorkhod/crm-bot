@@ -23,6 +23,7 @@ from crm2.db.schedule_loader import sync_schedule_from_files
 
 # Роутеры (оставляем только актуальные модули из crm2.handlers.*)
 from crm2.handlers import start, consent, registration, auth, info
+
 from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
 
 # Админ-панель
@@ -68,6 +69,8 @@ dp.include_router(registration.router)
 dp.include_router(auth.router)
 dp.include_router(info.router)
 dp.include_router(schedule_router)
+
+# Админ-панель
 dp.include_router(admin_panel_router)
 dp.include_router(admin_users_router)
 dp.include_router(admin_schedule_router)
@@ -119,10 +122,6 @@ async def main() -> None:
     sync_schedule_from_files([
         "schedule_2025_1_cohort.xlsx",
         "schedule_2025_2_cohort.xlsx",
-        "crm2/data/schedule 2025 1 cohort.xlsx",
-        "crm2/data/schedule 2025 2 cohort.xlsx",
-        "crm2/data/schedule_2025_1_cohort.xlsx",
-        "crm2/data/schedule_2025_2_cohort.xlsx",
     ])
 
     # Старт
