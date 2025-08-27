@@ -98,3 +98,27 @@ async def admin_users_page(cb: CallbackQuery):
         page = 1
     await _show_group_page(cb, group_key=group_key, page=page)
     await cb.answer()
+
+
+# хендлер «назад»:
+
+@router.callback_query(F.data == "admin:back")
+async def admin_back(cb: CallbackQuery):
+    """
+    Возврат из списка пользователей в админ-панель.
+    Пытаемся отрендерить встроенную панель, иначе просто отвечаем текстом.
+    """
+    try:
+        # Если у тебя есть готовый рендерер панели — используем его.
+        from crm2.handlers.admin.panel import render_admin_panel  # см. шаг 2
+        await render_admin_panel(cb.message)
+    except Exception:
+        # Фолбэк: убираем инлайн и пишем подсказку.
+        try:
+            await cb.message.edit_text("Админ-панель:")
+        except TelegramBadRequest:
+            await cb.message.answer("Админ-панель:")
+    finally:
+        await cb.answer()
+
+#         конец файла  crm2/handlers/admin/users.py

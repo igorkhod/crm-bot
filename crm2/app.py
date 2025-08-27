@@ -27,8 +27,8 @@ from crm2.handlers import start, consent, registration, auth, info
 from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
 
 # Админ-панель
-from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.panel import router as admin_panel_router
+from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
 from crm2.handlers.admin.logs import router as admin_logs_router
 from crm2.handlers.admin.broadcast import router as admin_broadcast_router  # мастер-рассылки
@@ -70,9 +70,10 @@ dp.include_router(auth.router)
 dp.include_router(info.router)
 dp.include_router(schedule_router)
 
-dp.include_router(admin_users_router)
+
 # Админ-панель
 dp.include_router(admin_panel_router)
+dp.include_router(admin_users_router)
 dp.include_router(admin_schedule_router)
 dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
