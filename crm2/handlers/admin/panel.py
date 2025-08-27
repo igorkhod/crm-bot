@@ -34,7 +34,9 @@ async def admin_entry(msg: Message):
 
 @router.callback_query(F.data == "adm:users")
 async def admin_users_entry(cb: CallbackQuery):
-    await cb.message.answer("👥 Пользователи → скоро тут будут списки, поиск и смена ролей.")
+    from crm2.keyboards.admin_users import users_groups_kb
+    await cb.message.answer("Выберите интересующую вас группу:", reply_markup=users_groups_kb())
+    # await cb.message.answer("👥 Пользователи → скоро тут будут списки, поиск и смена ролей.")
     await cb.answer()
 
 @router.callback_query(F.data == "adm:schedule")

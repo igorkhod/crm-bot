@@ -70,9 +70,9 @@ dp.include_router(auth.router)
 dp.include_router(info.router)
 dp.include_router(schedule_router)
 
+dp.include_router(admin_users_router)
 # Админ-панель
 dp.include_router(admin_panel_router)
-dp.include_router(admin_users_router)
 dp.include_router(admin_schedule_router)
 dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
