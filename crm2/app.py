@@ -1,7 +1,5 @@
 # === Файл: crm2/app.py
 # Назначение: Точка входа бота (aiogram v3). Инициализация БД, подключение роутеров, запуск polling.
-# Коротко: схемы БД (users/consents, admin, schedule), синхронизация расписания из XLSX,
-#          роутеры: start, consent, registration, auth, info, schedule, admin (panel/users/schedule/logs/broadcast).
 
 from __future__ import annotations
 
@@ -14,6 +12,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
 from dotenv import load_dotenv
 
 from crm2.db.sqlite import DB_PATH, ensure_schema
@@ -21,9 +20,10 @@ from crm2.db.migrate_admin import ensure_admin_schema
 from crm2.db.auto_migrate import ensure_schedule_schema
 from crm2.db.schedule_loader import sync_schedule_from_files
 
-# Роутеры (оставляем только актуальные модули из crm2.handlers.*)
+# Роутеры (пользовательские)
 from crm2.handlers import start, consent, registration, auth, info
 
+# Общие хэндлеры расписания (клавиатура ближайших занятий)
 from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
 
 # Админ-панель
@@ -31,15 +31,13 @@ from crm2.handlers.admin.panel import router as admin_panel_router
 from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
 from crm2.handlers.admin.logs import router as admin_logs_router
-from crm2.handlers.admin.broadcast import router as admin_broadcast_router  # мастер-рассылки
-# расписание
+from crm2.handlers.admin.broadcast import router as admin_broadcast_router
 
 
+# === Утилиты ===============================================================
 
-
-# === Утилиты для ролей/согласия (минимум: чтение роли)
 def _get_role_from_db(tg_id: int) -> str:
-    """Без автоклассификации: читаем роль из БД как есть."""
+    """Читаем роль из БД как есть (без автоклассификации)."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -48,7 +46,16 @@ def _get_role_from_db(tg_id: int) -> str:
         return (row["role"] if row and row["role"] else "curious")
 
 
-# === Инициализация окружения и логгинга
+def _is_schedule_text(txt: str) -> bool:
+    """Нормализуем «📅 Расписание», 'Расписание', 'schedule'."""
+    if not txt:
+        return False
+    t = txt.replace("📅", "").replace("🗓", "").strip().lower()
+    return t in {"расписание", "schedule"}
+
+
+# === Инициализация окружения и логирования =================================
+
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
@@ -61,20 +68,23 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-# === Бот/диспетчер
+# === Бот/диспетчер ==========================================================
+
 bot = Bot(TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# === Роутеры
+# === Роутеры ================================================================
+
 dp.include_router(consent.router)
 dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)
 dp.include_router(info.router)
+
+# общий роутер расписания (коллбэки карточек и т.п.)
 dp.include_router(schedule_router)
 
-
-# Админ-панель
+# админ-подсекции
 dp.include_router(admin_panel_router)
 dp.include_router(admin_users_router)
 dp.include_router(admin_schedule_router)
@@ -82,7 +92,19 @@ dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
 
 
-# === Кабинет пользователя
+# === Хэндлеры верхнего уровня (кнопки/команды) =============================
+
+# Кнопка «📅 Расписание» / текст «Расписание»
+@dp.message(F.text.func(_is_schedule_text))
+async def open_schedule_by_text(message: Message):
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+
+# Команда /schedule на всякий случай
+@dp.message(Command("schedule"))
+async def open_schedule_by_cmd(message: Message):
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+
+# Кабинет пользователя + показ расписания
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))
 async def cmd_home(message: Message):
     role = _get_role_from_db(message.from_user.id)
@@ -99,6 +121,8 @@ async def cmd_home(message: Message):
     await message.answer("Нажмите кнопку даты занятия, чтобы открыть тему занятия и краткое описание.")
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
 
+
+# === Точка входа ===========================================================
 
 async def main() -> None:
     # Диагностика сборки
@@ -118,17 +142,17 @@ async def main() -> None:
     logging.warning("[DIAG] handlers_schedule=%s sha=%s", hs_path, hs_sha)
 
     # Схемы БД
-    ensure_schema()          # users/consents
-    ensure_admin_schema()    # admin-таблицы
-    ensure_schedule_schema() # topics/session_days
+    ensure_schema()           # users/consents
+    ensure_admin_schema()     # admin-таблицы
+    ensure_schedule_schema()  # topics/session_days/events/healings
 
-    # Импорт расписания из XLSX (путь в корне И/ИЛИ в crm2/data)
+    # Импорт расписания из XLSX (лежат в корне репозитория на Render)
     sync_schedule_from_files([
         "schedule_2025_1_cohort.xlsx",
         "schedule_2025_2_cohort.xlsx",
     ])
 
-    # Старт
+    # Старт бота
     if ADMIN_ID:
         try:
             await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен!")
