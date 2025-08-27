@@ -86,7 +86,7 @@ async def admin_users_page(cb: CallbackQuery):
 
 
 #  временно добавлено
-@router.callback_query()
-async def _debug_all_callbacks(cb: CallbackQuery):
-    # Если до сюда дошли — значит более специфичные хендлеры не сработали
-    await cb.answer(f"callback: {cb.data}", show_alert=False)
+# @router.callback_query()
+# async def _debug_all_callbacks(cb: CallbackQuery):
+#     # Если до сюда дошли — значит более специфичные хендлеры не сработали
+#     await cb.answer(f"callback: {cb.data}", show_alert=False)
