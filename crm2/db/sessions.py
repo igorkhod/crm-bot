@@ -1,9 +1,10 @@
+# crm2\db\sessions.py
 
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 from .core import get_db_connection
 
@@ -58,8 +59,8 @@ def get_user_stream_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str
             (uid,),
         ).fetchone()
 
-        stream_id = p["stream_id"] if (p and p["stream_id"] is not None) else u["cohort_id"]
-        if stream_id is None:
+        stream_id = p["stream_id"] if (p and p["stream_id"] not in (None, "")) else u["cohort_id"]
+        if stream_id in (None, ""):
             return None, None
 
         title = _safe_title_from_table(con, "streams", int(stream_id)) or \
@@ -276,25 +277,26 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> Lis
         if tg_id is not None:
             row = con.execute(
                 """
-                WITH u AS (
-                    SELECT id, cohort_id
-                    FROM users
-                    WHERE telegram_id=?
+                WITH u AS (SELECT id, cohort_id
+                           FROM users
+                           WHERE telegram_id = ?
                     LIMIT 1
-                ),
-                p AS (
-                    SELECT stream_id
-                    FROM participants
-                    WHERE user_id=(SELECT id FROM u LIMIT 1)
-                    ORDER BY id DESC
+                    )
+                   , p AS (
+                SELECT stream_id
+                FROM participants
+                WHERE user_id=(SELECT id FROM u LIMIT 1)
+                ORDER BY id DESC
                     LIMIT 1
-                )
+                    )
                 SELECT COALESCE(p.stream_id, u.cohort_id) AS stream_id
-                FROM u LEFT JOIN p ON 1=1
+                FROM u
+                         LEFT JOIN p ON 1 = 1
                 """,
                 (tg_id,),
             ).fetchone()
-            stream_id = int(row["stream_id"]) if (row and row["stream_id"] is not None) else None
+            if row and row["stream_id"] not in (None, ""):
+                stream_id = int(row["stream_id"])
 
         if _table_exists(con, "sessions"):
             return _select_from_sessions(con, stream_id=stream_id, limit=limit)
@@ -400,3 +402,5 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
             }
 
     return None
+
+# конец файла # crm2\db\sessions.py
