@@ -1,4 +1,4 @@
-
+# crm2/db/auto_migrate.py
 from __future__ import annotations
 
 import logging
@@ -36,7 +36,8 @@ def ensure_schedule_schema() -> None:
             """
         )
         con.commit()
-        log.info("[SCHEMA] topics/session_days ensured")
+        log.info("[SCHEMA] topics/ensure_all_schemas()")
+        logging.info("[SCHEMA] topics/session_days/events/healings ensured")
 
 
 def apply_topic_overrides(overrides: dict[str, dict[str, str]]) -> None:
@@ -66,3 +67,32 @@ def apply_topic_overrides(overrides: dict[str, dict[str, str]]) -> None:
                 cur.execute("UPDATE topics SET annotation=? WHERE code=?", (fields["annotation"], code))
         con.commit()
         log.info("[OVERRIDES] topics updated: %s", ", ".join(overrides.keys()))
+
+
+# --- ДОБАВЬ ЭТО ВНИЗ ФАЙЛА (рядом с ensure topics/session_days) ---
+def ensure_events_and_healings(con):
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,                 -- YYYY-MM-DD
+            title TEXT NOT NULL,
+            description TEXT
+        );
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);")
+
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS healing_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,                 -- YYYY-MM-DD
+            time_start TEXT NOT NULL,           -- HH:MM
+            note TEXT
+        );
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_healings_dt ON healing_sessions(date, time_start);")
+
+def ensure_all_schemas():
+    with get_db_connection() as con:
+        ensure_topics_and_session_days(con)     # ← у тебя уже есть
+        ensure_events_and_healings(con)         # ← ДОБАВИЛИ
+        con.commit()

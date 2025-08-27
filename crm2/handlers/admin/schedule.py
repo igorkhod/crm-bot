@@ -1,49 +1,166 @@
+# crm2/handlers/admin/schedule.py
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from crm2.utils.guards import AdminOnly
-from crm2.db.core import get_db_connection
-from crm2.db.schedule_loader import sync_schedule_from_files
+from aiogram.types import CallbackQuery, Message
+from aiogram.exceptions import TelegramBadRequest
 
-router = Router()
-router.callback_query.middleware(AdminOnly())
+from crm2.keyboards.admin_schedule import schedule_menu_kb, schedule_streams_kb, pager_kb
+from crm2.db import schedule_repo as repo
 
-def schedule_menu_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📥 Импорт из XLSX", callback_data="adm:schedule:import")],
-        [InlineKeyboardButton(text="↩️ Назад", callback_data="adm:back")],
-    ])
+router = Router(name="admin_schedule")
 
+PAGE = 10
+
+# --- входное меню ---
 @router.callback_query(F.data == "adm:schedule")
-async def schedule_entry(cb: CallbackQuery):
-    with get_db_connection() as con:
-        rows = con.execute("""
-            SELECT date, topic_code, (SELECT title FROM topics t WHERE t.id=sd.topic_id) AS title
-            FROM session_days sd
-            WHERE date >= date('now')
-            ORDER BY date
-            LIMIT 5
-        """).fetchall()
-    if not rows:
-        text = "Ближайших занятий пока не видно."
-    else:
-        text = "Ближайшие занятия:\n" + "\n".join(f"— {r[0]} • {r[1]} • {r[2] or ''}" for r in rows)
-    await cb.message.answer(text, reply_markup=schedule_menu_kb())
+async def schedule_menu(cb: CallbackQuery):
+    await _render_menu(cb.message)
     await cb.answer()
 
-@router.callback_query(F.data == "adm:schedule:import")
-async def schedule_import(cb: CallbackQuery):
+async def _render_menu(msg: Message):
     try:
-        affected = sync_schedule_from_files([
-            "schedule_2025_1_cohort.xlsx",
-            "schedule_2025_2_cohort.xlsx",
-            "crm2/data/schedule 2025 1 cohort.xlsx",
-            "crm2/data/schedule 2025 2 cohort.xlsx",
-        ])
-        if affected is None:
-            msg = "Импорт выполнен."
-        else:
-            msg = f"Импорт выполнен, обновлено строк: {affected}."
-    except Exception as e:
-        msg = f"Ошибка импорта: {e}"
-    await cb.message.answer(msg, reply_markup=schedule_menu_kb())
+        await msg.edit_text("Раздел «Расписание»", reply_markup=schedule_menu_kb())
+    except TelegramBadRequest:
+        await msg.answer("Раздел «Расписание»", reply_markup=schedule_menu_kb())
+
+# --- 1) Тренинги по потокам ---
+@router.callback_query(F.data == "sch:trainings")
+async def trainings_entry(cb: CallbackQuery):
+    try:
+        await cb.message.edit_text("Выберите поток:", reply_markup=schedule_streams_kb())
+    except TelegramBadRequest:
+        await cb.message.answer("Выберите поток:", reply_markup=schedule_streams_kb())
     await cb.answer()
+
+@router.callback_query(F.data.startswith("sch:tr:stream:"))
+async def trainings_stream(cb: CallbackQuery):
+    stream_id = int(cb.data.split(":")[-1])
+    await _render_trainings(cb.message, stream_id, page=1)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("sch:tr:page:"))
+async def trainings_page(cb: CallbackQuery):
+    # формат: sch:tr:page:<page>:<stream_id>
+    parts = cb.data.split(":")
+    page = int(parts[3])
+    stream_id = int(parts[4])
+    await _render_trainings(cb.message, stream_id, page)
+    await cb.answer()
+
+async def _render_trainings(msg: Message, stream_id: int, page: int):
+    total = repo.count_trainings(stream_id)
+    pages = max(1, (total + PAGE - 1) // PAGE)
+    page = max(1, min(page, pages))
+    offset = (page - 1) * PAGE
+    items = repo.list_trainings(stream_id, offset, PAGE)
+
+    lines = [f"🎓 Тренинги — поток {stream_id} · найдено: {total}", ""]
+    for it in items:
+        date = it["date"]
+        code = it.get("topic_code") or ""
+        title = it.get("topic_title") or ""
+        sep = " — " if code and title else ""
+        lines.append(f"• {date} · {code}{sep}{title}")
+    text = "\n".join(lines) if items or total == 0 else "Пока пусто…"
+
+    kb = pager_kb(prefix="sch:tr:page", page=page, pages=pages, suffix=str(stream_id))
+    try:
+        await msg.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e).lower():
+            raise
+
+# --- 2) Мероприятия ---
+@router.callback_query(F.data == "sch:events")
+async def events_entry(cb: CallbackQuery):
+    await _render_events(cb.message, page=1)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("sch:ev:page:"))
+async def events_page(cb: CallbackQuery):
+    page = int(cb.data.split(":")[-1])
+    await _render_events(cb.message, page)
+    await cb.answer()
+
+async def _render_events(msg: Message, page: int):
+    total = repo.count_events()
+    pages = max(1, (total + PAGE - 1) // PAGE)
+    page = max(1, min(page, pages))
+    items = repo.list_events(offset=(page - 1) * PAGE, limit=PAGE)
+
+    lines = [f"🎪 Мероприятия · найдено: {total}", ""]
+    for it in items:
+        lines.append(f"• {it['date']} · {it['title']}")
+        if it.get("description"):
+            lines.append(f"  {it['description']}")
+    text = "\n".join(lines) if items or total == 0 else "Пока пусто…"
+
+    kb = pager_kb(prefix="sch:ev:page", page=page, pages=pages)
+    try:
+        await msg.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e).lower():
+            raise
+
+# --- 3) Целительские приёмы ---
+@router.callback_query(F.data == "sch:healings")
+async def healings_entry(cb: CallbackQuery):
+    await _render_healings(cb.message, page=1)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("sch:hl:page:"))
+async def healings_page(cb: CallbackQuery):
+    page = int(cb.data.split(":")[-1])
+    await _render_healings(cb.message, page)
+    await cb.answer()
+
+async def _render_healings(msg: Message, page: int):
+    total = repo.count_healings()
+    pages = max(1, (total + PAGE - 1) // PAGE)
+    page = max(1, min(page, pages))
+    items = repo.list_healings(offset=(page - 1) * PAGE, limit=PAGE)
+
+    lines = [f"✨ Целительские приёмы · найдено: {total}", ""]
+    for it in items:
+        lines.append(f"• {it['date']} {it['time_start']} · {it.get('note','')}".rstrip())
+    text = "\n".join(lines) if items or total == 0 else "Пока пусто…"
+
+    kb = pager_kb(prefix="sch:hl:page", page=page, pages=pages)
+    try:
+        await msg.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e).lower():
+            raise
+
+# --- 4) Общее расписание ---
+@router.callback_query(F.data == "sch:all")
+async def all_entry(cb: CallbackQuery):
+    await _render_all(cb.message, page=1)
+    await cb.answer()
+
+@router.callback_query(F.data.startswith("sch:all:page:"))
+async def all_page(cb: CallbackQuery):
+    page = int(cb.data.split(":")[-1])
+    await _render_all(cb.message, page)
+    await cb.answer()
+
+async def _render_all(msg: Message, page: int):
+    total = repo.count_all()
+    pages = max(1, (total + PAGE - 1) // PAGE)
+    page = max(1, min(page, pages))
+    items = repo.list_all(offset=(page - 1) * PAGE, limit=PAGE)
+
+    icon = {"training": "🎓", "event": "🎪", "healing": "✨"}
+    lines = [f"📋 Общее расписание · найдено: {total}", ""]
+    for it in items:
+        k = it["kind"]
+        lines.append(f"• {it['start_at']} · {icon.get(k, '•')} {it['title']}")
+        if it.get("details"):
+            lines.append(f"  {it['details']}")
+    text = "\n".join(lines) if items or total == 0 else "Пока пусто…"
+
+    kb = pager_kb(prefix="sch:all:page", page=page, pages=pages)
+    try:
+        await msg.edit_text(text, reply_markup=kb)
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e).lower():
+            raise

@@ -32,6 +32,9 @@ from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
 from crm2.handlers.admin.logs import router as admin_logs_router
 from crm2.handlers.admin.broadcast import router as admin_broadcast_router  # мастер-рассылки
+# расписание
+
+
 
 
 # === Утилиты для ролей/согласия (минимум: чтение роли)
