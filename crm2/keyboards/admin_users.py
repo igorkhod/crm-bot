@@ -4,7 +4,6 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 
-# Ключи групп — стабильные, на них будем вешать логику выборки
 GROUPS = [
     ("1 поток", "users:group:stream_1"),
     ("2 поток", "users:group:stream_2"),
@@ -18,5 +17,17 @@ def users_groups_kb() -> InlineKeyboardMarkup:
     for title, cb in GROUPS:
         kb.button(text=title, callback_data=cb)
     kb.button(text="⬅️ Назад в админ-панель", callback_data="admin:back")
-    kb.adjust(2, 2, 1)  # 2-2-1 в ряд
+    kb.adjust(2, 2, 1)
+    return kb.as_markup()
+
+def users_pager_kb(group_key: str, page: int, pages: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    prev_p = max(1, page - 1)
+    next_p = min(pages, page + 1)
+    kb.button(text="◀️", callback_data=f"users:page:{group_key}:{prev_p}")
+    kb.button(text=f"{page}/{pages}", callback_data="noop")
+    kb.button(text="▶️", callback_data=f"users:page:{group_key}:{next_p}")
+    kb.button(text="🔄 Выбрать группу", callback_data="users:groups")
+    kb.button(text="⬅️ Назад в админ-панель", callback_data="admin:back")
+    kb.adjust(3, 2)
     return kb.as_markup()
