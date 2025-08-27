@@ -1,8 +1,8 @@
 # crm2/keyboards/admin_users.py
 # Краткая аннотация: inline-клавиатуры для раздела "Пользователи" (админ-панель)
 
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 GROUPS = [
     ("1 поток", "users:group:stream_1"),
@@ -12,6 +12,7 @@ GROUPS = [
     ("Админы", "users:group:admins"),
 ]
 
+
 def users_groups_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for title, cb in GROUPS:
@@ -19,6 +20,7 @@ def users_groups_kb() -> InlineKeyboardMarkup:
     kb.button(text="⬅️ Назад в админ-панель", callback_data="admin:back")
     kb.adjust(2, 2, 1)
     return kb.as_markup()
+
 
 def users_pager_kb(group_key: str, page: int, pages: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()

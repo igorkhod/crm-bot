@@ -5,7 +5,8 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import StateFilter
 
-from crm2.keyboards.admin_users import users_groups_kb
+from crm2.keyboards.admin_users import users_groups_kb, users_pager_kb
+from crm2.db.users_repo import count_users, list_users
 
 router = Router(name="admin_users")
 
