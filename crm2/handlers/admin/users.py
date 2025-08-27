@@ -2,11 +2,11 @@
 # Краткая аннотация: подменю "Пользователи" — выбор группы и списки с пагинацией
 
 from aiogram import Router, F
-from aiogram.filters import StateFilter
 from aiogram.types import Message, CallbackQuery
+from aiogram.filters import StateFilter
 
-from crm2.db.users_repo import count_users, list_users
 from crm2.keyboards.admin_users import users_groups_kb, users_pager_kb
+from crm2.db.users_repo import count_users, list_users
 
 router = Router(name="admin_users")
 
@@ -19,7 +19,7 @@ async def admin_users_entry(message: Message):
     await message.answer("Выберите интересующую вас группу:", reply_markup=users_groups_kb())
 
 
-# Показать меню групп
+# Показать только меню групп (кнопка "🔄 Выбрать группу")
 @router.callback_query(F.data == "users:groups")
 async def admin_users_groups(cb: CallbackQuery):
     await cb.message.edit_text("Выберите интересующую вас группу:", reply_markup=users_groups_kb())
@@ -36,18 +36,14 @@ def _group_human(group_key: str) -> str:
     }.get(group_key, group_key)
 
 
-def _render_users(lines):
-    return "\n".join(lines) if lines else "Пока пусто…"
-
-
 def _user_line(u: dict) -> str:
-    full_name = (u.get("full_name") or u.get("nickname") or "—").strip()
+    name = (u.get("full_name") or u.get("nickname") or "—").strip()
     nick = u.get("nickname") or ""
     role = u.get("role") or "user"
     stream = u.get("stream_id") or u.get("cohort_id")
-    stream_txt = f" • поток: {stream}" if stream is not None else ""
     nick_txt = f" (@{nick})" if nick else ""
-    return f"• {full_name}{nick_txt} — {role}{stream_txt}"
+    stream_txt = f" • поток: {stream}" if stream is not None else ""
+    return f"• {name}{nick_txt} — {role}{stream_txt}"
 
 
 async def _show_group_page(cb_or_msg, group_key: str, page: int):
@@ -56,11 +52,13 @@ async def _show_group_page(cb_or_msg, group_key: str, page: int):
     page = max(1, min(page, pages))
     offset = (page - 1) * PAGE_SIZE
     users = list_users(group_key, offset=offset, limit=PAGE_SIZE)
+
     lines = [f"<b>{_group_human(group_key)}</b> — найдено: {total}", ""]
     lines += [_user_line(u) for u in users]
-    text = _render_users(lines)
+    text = "\n".join(lines) if users or total == 0 else "Пока пусто…"
+
     kb = users_pager_kb(group_key, page, pages)
-    # поддержим и message, и callback.message
+    # Поддержка и callback.message, и обычного message
     msg = getattr(cb_or_msg, "message", None) or cb_or_msg
     await msg.edit_text(text, reply_markup=kb)
 
@@ -68,7 +66,8 @@ async def _show_group_page(cb_or_msg, group_key: str, page: int):
 # Выбор группы → страница 1
 @router.callback_query(F.data.startswith("users:group:"))
 async def admin_users_pick_group(cb: CallbackQuery):
-    group_key = cb.data.split(":", 2)[-1]
+    # было: cb.data.split(":", 2)[-1] → давало "group"
+    group_key = cb.data.split(":")[-1]  # теперь корректно: stream_1 / stream_2 / new_intake / alumni / admins
     await _show_group_page(cb, group_key=group_key, page=1)
     await cb.answer()
 
@@ -76,17 +75,12 @@ async def admin_users_pick_group(cb: CallbackQuery):
 # Переход по страницам
 @router.callback_query(F.data.startswith("users:page:"))
 async def admin_users_page(cb: CallbackQuery):
-    _, _, group_key, page_str = cb.data.split(":", 3)
+    # формат: users:page:<group_key>:<page>
+    parts = cb.data.split(":")
+    group_key = parts[2] if len(parts) >= 4 else "stream_1"
     try:
-        page = int(page_str)
-    except ValueError:
+        page = int(parts[3])
+    except Exception:
         page = 1
     await _show_group_page(cb, group_key=group_key, page=page)
     await cb.answer()
-
-
-#  временно добавлено
-# @router.callback_query()
-# async def _debug_all_callbacks(cb: CallbackQuery):
-#     # Если до сюда дошли — значит более специфичные хендлеры не сработали
-#     await cb.answer(f"callback: {cb.data}", show_alert=False)
