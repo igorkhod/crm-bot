@@ -11,14 +11,12 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
 from crm2.db.sqlite import DB_PATH, ensure_schema
 from crm2.db.migrate_admin import ensure_admin_schema
-from crm2.db.auto_migrate import ensure_schedule_schema
-from crm2.db.schedule_loader import sync_schedule_from_files
+from crm2.db.auto_migrate import ensure_schedule_schema  # только схемы, без импорта
 
 # Роутеры (пользовательские)
 from crm2.handlers import start, consent, registration, auth, info
@@ -99,7 +97,7 @@ dp.include_router(admin_broadcast_router)
 async def open_schedule_by_text(message: Message):
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
 
-# Команда /schedule на всякий случай
+# Команда /schedule
 @dp.message(Command("schedule"))
 async def open_schedule_by_cmd(message: Message):
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
@@ -141,16 +139,23 @@ async def main() -> None:
                     os.getenv("RENDER_GIT_BRANCH", "<local>"))
     logging.warning("[DIAG] handlers_schedule=%s sha=%s", hs_path, hs_sha)
 
-    # Схемы БД
-    ensure_schema()           # users/consents
-    ensure_admin_schema()     # admin-таблицы
-    ensure_schedule_schema()  # topics/session_days/events/healings
+    # Схемы БД (users/admin/schedule)
+    ensure_schema()
+    ensure_admin_schema()
+    ensure_schedule_schema()
 
-    # Импорт расписания из XLSX (лежат в корне репозитория на Render)
-    sync_schedule_from_files([
-        "schedule_2025_1_cohort.xlsx",
-        "schedule_2025_2_cohort.xlsx",
-    ])
+    # --- ВНИМАНИЕ ---
+    # Автозагрузка расписания отключена по умолчанию.
+    # Если очень нужно — включай разово переменной окружения:
+    # CRM_SYNC_SCHEDULE_ON_START=1
+    if os.getenv("CRM_SYNC_SCHEDULE_ON_START") == "1":
+        from crm2.db.schedule_loader import sync_schedule_from_files
+        files = ["schedule_2025_1_cohort.xlsx", "schedule_2025_2_cohort.xlsx"]
+        try:
+            affected = sync_schedule_from_files(files)
+            logging.info("[SCHEDULE IMPORT] on start: affected rows=%s", affected)
+        except Exception as e:
+            logging.exception("Schedule import on start failed: %s", e)
 
     # Старт бота
     if ADMIN_ID:
@@ -171,3 +176,6 @@ async def main() -> None:
                 logging.error(f"Не удалось написать админу при остановке: {e}")
         await bot.session.close()
         logging.info("Сессия закрыта.")
+
+
+# === конец Файл: crm2/app.py
