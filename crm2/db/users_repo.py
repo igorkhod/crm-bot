@@ -40,15 +40,20 @@ def _where_for_group(group_key: str, cols: set) -> str:
         return "role = 'admin'"
     return "1=1"
 
-def _row_to_dict(row: Row) -> Dict[str, Any]:
+from sqlite3 import Row
+
+def _row_to_dict(row: Row) -> dict:
+    k = set(row.keys())  # имена доступных колонок в Row
     return {
-        "id": row["id"],
-        "telegram_id": row.get("telegram_id"),
-        "nickname": row.get("nickname"),
-        "full_name": row.get("full_name"),
-        "role": row.get("role"),
-        # В SELECT мы будем возвращать псевдоколонку AS stream_id
-        "stream_id": row.get("stream_id"),
+        "id": row["id"] if "id" in k else None,
+        "telegram_id": row["telegram_id"] if "telegram_id" in k else None,
+        "nickname": row["nickname"] if "nickname" in k else None,
+        "full_name": row["full_name"] if "full_name" in k else None,
+        "role": row["role"] if "role" in k else None,
+        # В SELECT мы возвращаем псевдоколонку AS stream_id — читаем её, если есть
+        "stream_id": row["stream_id"] if "stream_id" in k else None,
+        # На всякий случай — если когда-то вернём cohort_id в SELECT
+        "cohort_id": row["cohort_id"] if "cohort_id" in k else None,
     }
 
 # ---- публичные функции -------------------------------------------------------
