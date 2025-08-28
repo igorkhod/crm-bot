@@ -13,7 +13,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp import ClientTimeout, TCPConnector
+from aiohttp import ClientTimeout
 
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -152,10 +152,7 @@ async def main() -> None:
     ensure_admin_schema()
     ensure_schedule_schema()
 
-    # --- ВНИМАНИЕ ---
-    # Автозагрузка расписания отключена по умолчанию.
-    # Если очень нужно — включай разово переменной окружения:
-    # CRM_SYNC_SCHEDULE_ON_START=1
+    # Автозагрузка расписания (по требованию)
     if os.getenv("CRM_SYNC_SCHEDULE_ON_START") == "1":
         from crm2.db.schedule_loader import sync_schedule_from_files
         files = ["schedule_2025_1_cohort.xlsx", "schedule_2025_2_cohort.xlsx"]
@@ -165,14 +162,13 @@ async def main() -> None:
         except Exception as e:
             logging.exception("Schedule import on start failed: %s", e)
 
-    # --- ВАЖНО: создаём HTTP-сессию и бота ТОЛЬКО внутри работающего event loop ---
+    # --- создаём HTTP-сессию и бота ПОД живым event-loop’ом ---
     timeout = ClientTimeout(
         total=600,        # общий «зонтик»
         sock_connect=20,  # коннект
         sock_read=70,     # читать чуть больше, чем polling_timeout
     )
-    connector = TCPConnector(keepalive_timeout=75, limit=100)
-    session = AiohttpSession(timeout=timeout, connector=connector)
+    session = AiohttpSession(timeout=timeout)
 
     bot = Bot(
         TELEGRAM_TOKEN,
