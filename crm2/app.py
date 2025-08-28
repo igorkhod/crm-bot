@@ -3,39 +3,35 @@
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 import logging
 import os
 import sqlite3
-import hashlib
-import inspect
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 from aiogram.client.session.aiohttp import AiohttpSession
-
-from aiogram.types import Message
+from aiogram.enums import ParseMode
 from aiogram.filters import Command
+from aiogram.types import Message
 from dotenv import load_dotenv
 
-from crm2.db.sqlite import DB_PATH, ensure_schema
-from crm2.db.migrate_admin import ensure_admin_schema
 from crm2.db.auto_migrate import ensure_schedule_schema  # только схемы, без импорта
-
+from crm2.db.migrate_admin import ensure_admin_schema
+from crm2.db.sqlite import DB_PATH, ensure_schema
+from crm2.handlers import about as about_router
+from crm2.handlers import help as help_router
 # Роутеры (пользовательские)
 from crm2.handlers import start, consent, registration, auth, info
-
-# Общие хэндлеры расписания (клавиатура ближайших занятий)
-from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard, show_info_menu
-
-
+from crm2.handlers.admin.broadcast import router as admin_broadcast_router
+from crm2.handlers.admin.logs import router as admin_logs_router
 # Админ-подсекции
 from crm2.handlers.admin.panel import router as admin_panel_router
-from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
-from crm2.handlers.admin.logs import router as admin_logs_router
-from crm2.handlers.admin.broadcast import router as admin_broadcast_router
-from crm2.handlers import help as help_router
+from crm2.handlers.admin.users import router as admin_users_router
+# Общие хэндлеры расписания (клавиатура ближайших занятий)
+from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard, show_info_menu
 
 
 # === Утилиты ===============================================================
@@ -76,7 +72,6 @@ logging.getLogger("aiogram.client.session.aiohttp").setLevel(logging.WARNING)
 logging.getLogger("aiohttp.client").setLevel(logging.WARNING)
 logging.getLogger("aiohttp.helpers").setLevel(logging.WARNING)
 
-
 # === Бот/диспетчер ==========================================================
 
 # Dispatcher можно создать на уровне модуля
@@ -99,6 +94,7 @@ dp.include_router(admin_schedule_router)
 dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
 dp.include_router(help_router.router)
+dp.include_router(about_router.router)
 
 
 # === Хэндлеры верхнего уровня (кнопки/команды) =============================
@@ -108,10 +104,12 @@ dp.include_router(help_router.router)
 async def open_schedule_by_text(message: Message):
     await show_info_menu(message)
 
+
 # Команда /schedule
 @dp.message(Command("schedule"))
 async def open_schedule_by_cmd(message: Message):
     await show_info_menu(message)
+
 
 # Кабинет пользователя + показ расписания
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))
@@ -184,7 +182,7 @@ async def main() -> None:
     try:
         await dp.start_polling(
             bot,
-            polling_timeout=60,          # синхрон с session.timeout (70)
+            polling_timeout=60,  # синхрон с session.timeout (70)
             allowed_updates=None,
             drop_pending_updates=False,
         )
