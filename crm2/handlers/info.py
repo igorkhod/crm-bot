@@ -118,7 +118,7 @@ async def show_agents(message: Message):
     await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
 
 
-@ router.message(F.text == "🧘 Волевая медитация")
+@ router.message(F.text == "🧘 Волевая медитация (необходима VPN)")
 async def open_meditation(message: Message):
     await message.answer(
         "Открыть: [Волевая медитация](https://chatgpt.com/g/g-6871e6ae78c481918109e8813e51bc84-volevaia-meditatsiia)",
@@ -126,7 +126,7 @@ async def open_meditation(message: Message):
     )
 
 
-@ router.message(F.text == "⚖️ Психотехнологии гармонии")
+@ router.message(F.text == "⚖️ Психотехнологии гармонии (необходима VPN)")
 async def open_harmony(message: Message):
     await message.answer(
         "Открыть: [Психотехнологии гармонии](https://chatgpt.com/g/g-687493b5969c8191975066fd9970bd24-psikhotekhnologii-garmonii)",
