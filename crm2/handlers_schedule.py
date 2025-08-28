@@ -57,8 +57,9 @@ async def send_schedule_keyboard(
 # Keyboard with all items
     await message.answer(
         "Выберите дату занятия для получения более детальной информации:",
-        reply_markup=build_schedule_keyboard(sessions),
+        reply_markup=build_schedule_keyboard(sessions, show_stream=(stream_id is None)),
     )
+
 
 async def send_nearest_session(message: Message, *, tg_id: int | None = None, limit: int = 5) -> None:
     """
