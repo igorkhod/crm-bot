@@ -35,6 +35,7 @@ from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
 from crm2.handlers.admin.logs import router as admin_logs_router
 from crm2.handlers.admin.broadcast import router as admin_broadcast_router
+from crm2.handlers import help as help_router
 
 
 # === Утилиты ===============================================================
@@ -97,6 +98,7 @@ dp.include_router(admin_users_router)
 dp.include_router(admin_schedule_router)
 dp.include_router(admin_logs_router)
 dp.include_router(admin_broadcast_router)
+dp.include_router(help_router.router)
 
 
 # === Хэндлеры верхнего уровня (кнопки/команды) =============================
