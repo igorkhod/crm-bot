@@ -10,6 +10,9 @@ import sqlite3
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiohttp import ClientTimeout, TCPConnector
+
 from aiogram.types import Message
 from aiogram.filters import Command
 from dotenv import load_dotenv
@@ -65,14 +68,29 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logging.getLogger("aiogram.client.session.aiohttp").setLevel(logging.WARNING)
+logging.getLogger("aiohttp.client").setLevel(logging.WARNING)
+logging.getLogger("aiohttp.helpers").setLevel(logging.WARNING)
 
 # === Бот/диспетчер ==========================================================
 
-bot = Bot(TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# === Бот/диспетчер ==========================================================
+_timeout = ClientTimeout(
+    total=600,         # общий «зонтик» на всякий случай
+    sock_connect=20,   # коннект
+    sock_read=70,      # читать чуть больше, чем polling_timeout
+)
+_connector = TCPConnector(keepalive_timeout=75, limit=100)
+_session = AiohttpSession(timeout=_timeout, connector=_connector)
+
+bot = Bot(
+    TELEGRAM_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    session=_session,
+)
 dp = Dispatcher()
 
 # === Роутеры ================================================================
-
 dp.include_router(consent.router)
 dp.include_router(start.router)
 dp.include_router(registration.router)
@@ -165,7 +183,13 @@ async def main() -> None:
             logging.error(f"Не удалось написать админу при старте: {e}")
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(
+            bot,
+            polling_timeout=60,  # синхрон с sock_read
+            allowed_updates=None,
+            drop_pending_updates=False,
+        )
+
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt — завершаем...")
     finally:
