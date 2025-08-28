@@ -192,12 +192,19 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
 
     groups = groups[:limit]
 
+    # Оставляем stream_id, чтобы в UI можно было показывать поток
+    cleaned = []
     for g in groups:
-        for k in list(g.keys()):
-            if k not in ("id", "start_date", "end_date", "topic_code", "title", "annotation"):
-                g.pop(k, None)
-
-    return groups
+        cleaned.append({
+            "id": g["id"],
+            "start_date": g["start_date"],
+            "end_date": g["end_date"],
+            "topic_code": g.get("topic_code"),
+            "title": g.get("title"),
+            "annotation": g.get("annotation"),
+            "stream_id": g.get("stream_id"),
+        })
+    return cleaned
 
 
 def _select_from_sessions(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
@@ -430,16 +437,16 @@ def get_nearest_session_text() -> str | None:
         # Попробуем через session_days, т.к. там точнее даты
         if _table_exists(con, "session_days") and _table_exists(con, "topics"):
             cur = con.execute("""
-                SELECT MIN(sd.date) AS start_date,
-                       MAX(sd.date) AS end_date,
-                       t.code AS topic_code
-                FROM session_days sd
-                JOIN topics t ON t.id = sd.topic_id
-                WHERE date(sd.date) >= date('now')
-                GROUP BY t.code
-                ORDER BY date(start_date)
-                LIMIT 1
-            """)
+                              SELECT MIN(sd.date) AS start_date,
+                                     MAX(sd.date) AS end_date,
+                                     t.code       AS topic_code
+                              FROM session_days sd
+                                       JOIN topics t ON t.id = sd.topic_id
+                              WHERE date (sd.date) >= date ('now')
+                              GROUP BY t.code
+                              ORDER BY date (start_date)
+                                  LIMIT 1
+                              """)
             row = cur.fetchone()
             if row:
                 s = row["start_date"]
@@ -451,6 +458,5 @@ def get_nearest_session_text() -> str | None:
                     dates = s or e or "—"
                 return f"Ближайшее занятие: {dates} • {code}"
         return None
-
 
 # конец файла # crm2\db\sessions.py

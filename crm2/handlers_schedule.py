@@ -43,15 +43,18 @@ async def send_schedule_keyboard(
         await message.answer("Ближайших занятий пока нет.")
         return
 
-    # First line: "Ближайшее занятие:"
+# First line: "Ближайшее занятие
+
     first = sessions[0]
     code = (first.get("topic_code") or "").strip()
     first_line = f"Ближайшее занятие: {format_range(first['start_date'], first['end_date'])}"
     if code:
         first_line += f" • {code}"
-    await message.answer(first_line)
-
-    # Keyboard with all items
+# добавим поток только если показываем "общее расписание"
+    if stream_id is None and first.get("stream_id"):
+        first_line += f" · поток {first['stream_id']}"
+        await message.answer(first_line)
+# Keyboard with all items
     await message.answer(
         "Выберите дату занятия для получения более детальной информации:",
         reply_markup=build_schedule_keyboard(sessions),
