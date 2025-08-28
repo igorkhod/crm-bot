@@ -78,13 +78,21 @@ async def send_nearest_session(message: Message, *, tg_id: int | None = None, li
     await message.answer(line)
 
 def _info_menu_kb() -> ReplyKeyboardMarkup:
+  # Два ряда: три кнопки в первом, две во втором
     rows = [
-        [KeyboardButton(text="1 поток · набор 09.2023")],
-        [KeyboardButton(text="2 поток · набор 04.2025")],
-        [KeyboardButton(text="Новый набор · 2026")],
-        # Кнопку «Мероприятия» добавим после подключения db/events.py
+        [
+            KeyboardButton(text="1 поток · набор 09.2023"),
+            KeyboardButton(text="2 поток · набор 04.2025"),
+            KeyboardButton(text="Новый набор · 2026"),
+        ],
+        [
+            KeyboardButton(text="Всё расписание"),
+            KeyboardButton(text="Главное меню"),
+        ],
     ]
+
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
 
 async def show_info_menu(message: Message) -> None:
     await message.answer("Выберите раздел:", reply_markup=_info_menu_kb())
@@ -103,6 +111,33 @@ async def _show_new(message: Message):
     await message.answer("Начало занятий по мере комплектования группы.")
 
 
+
+# --- Новые обработчики ---
+
+@router.message(F.text == "Всё расписание")
+async def _show_all_schedule(message: Message):
+    """Смешанное расписание всех потоков, сортированное по дате начала"""
+    await send_schedule_keyboard(message, limit=10, tg_id=message.from_user.id, stream_id=None)
+
+
+@router.message(F.text == "Главное меню")
+async def _show_main_menu(message: Message):
+    """Возврат в главное меню"""
+    from crm2.keyboards.main_menu import guest_start_kb, role_kb
+    from crm2.db.sqlite import DB_PATH
+    import sqlite3
+
+# Определяем роль пользователя
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute("SELECT role FROM users WHERE telegram_id=?", (message.from_user.id,))
+        row = cur.fetchone()
+        role = row["role"] if row else "curious"
+
+    if role in (None, "", "curious"):
+        await message.answer("Главное меню:", reply_markup=guest_start_kb())
+    else:
+        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
 # --- Callbacks ---
 
 @router.callback_query(F.data.startswith("session:"))
