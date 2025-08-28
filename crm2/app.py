@@ -13,7 +13,6 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp import ClientTimeout
 
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -163,12 +162,8 @@ async def main() -> None:
             logging.exception("Schedule import on start failed: %s", e)
 
     # --- создаём HTTP-сессию и бота ПОД живым event-loop’ом ---
-    timeout = ClientTimeout(
-        total=600,        # общий «зонтик»
-        sock_connect=20,  # коннект
-        sock_read=70,     # читать чуть больше, чем polling_timeout
-    )
-    session = AiohttpSession(timeout=timeout)
+    # ВАЖНО: для aiogram v3 timeout должен быть числом (секунды), не ClientTimeout
+    session = AiohttpSession(timeout=70)  # читаем чуть дольше, чем polling_timeout
 
     bot = Bot(
         TELEGRAM_TOKEN,
@@ -186,7 +181,7 @@ async def main() -> None:
     try:
         await dp.start_polling(
             bot,
-            polling_timeout=60,          # синхрон с sock_read
+            polling_timeout=60,          # синхрон с session.timeout (70)
             allowed_updates=None,
             drop_pending_updates=False,
         )
