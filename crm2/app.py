@@ -6,6 +6,8 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import hashlib
+import inspect
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -27,7 +29,7 @@ from crm2.handlers import start, consent, registration, auth, info
 # Общие хэндлеры расписания (клавиатура ближайших занятий)
 from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
 
-# Админ-панель
+# Админ-подсекции
 from crm2.handlers.admin.panel import router as admin_panel_router
 from crm2.handlers.admin.users import router as admin_users_router
 from crm2.handlers.admin.schedule import router as admin_schedule_router
@@ -68,27 +70,15 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# приглушаем «обычный сетевой шум»
 logging.getLogger("aiogram.client.session.aiohttp").setLevel(logging.WARNING)
 logging.getLogger("aiohttp.client").setLevel(logging.WARNING)
 logging.getLogger("aiohttp.helpers").setLevel(logging.WARNING)
 
-# === Бот/диспетчер ==========================================================
-
 
 # === Бот/диспетчер ==========================================================
-_timeout = ClientTimeout(
-    total=600,         # общий «зонтик» на всякий случай
-    sock_connect=20,   # коннект
-    sock_read=70,      # читать чуть больше, чем polling_timeout
-)
-_connector = TCPConnector(keepalive_timeout=75, limit=100)
-_session = AiohttpSession(timeout=_timeout, connector=_connector)
 
-bot = Bot(
-    TELEGRAM_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    session=_session,
-)
+# Dispatcher можно создать на уровне модуля
 dp = Dispatcher()
 
 # === Роутеры ================================================================
@@ -143,7 +133,6 @@ async def cmd_home(message: Message):
 
 async def main() -> None:
     # Диагностика сборки
-    import hashlib, inspect
     try:
         import crm2.handlers_schedule as hs
         hs_path = inspect.getfile(hs)
@@ -176,6 +165,21 @@ async def main() -> None:
         except Exception as e:
             logging.exception("Schedule import on start failed: %s", e)
 
+    # --- ВАЖНО: создаём HTTP-сессию и бота ТОЛЬКО внутри работающего event loop ---
+    timeout = ClientTimeout(
+        total=600,        # общий «зонтик»
+        sock_connect=20,  # коннект
+        sock_read=70,     # читать чуть больше, чем polling_timeout
+    )
+    connector = TCPConnector(keepalive_timeout=75, limit=100)
+    session = AiohttpSession(timeout=timeout, connector=connector)
+
+    bot = Bot(
+        TELEGRAM_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=session,
+    )
+
     # Старт бота
     if ADMIN_ID:
         try:
@@ -186,11 +190,10 @@ async def main() -> None:
     try:
         await dp.start_polling(
             bot,
-            polling_timeout=60,  # синхрон с sock_read
+            polling_timeout=60,          # синхрон с sock_read
             allowed_updates=None,
             drop_pending_updates=False,
         )
-
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt — завершаем...")
     finally:
@@ -201,6 +204,3 @@ async def main() -> None:
                 logging.error(f"Не удалось написать админу при остановке: {e}")
         await bot.session.close()
         logging.info("Сессия закрыта.")
-
-
-# === конец Файл: crm2/app.py
