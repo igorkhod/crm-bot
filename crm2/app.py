@@ -24,6 +24,7 @@ from crm2.handlers import about as about_router
 from crm2.handlers import help as help_router
 # Роутеры (пользовательские)
 from crm2.handlers import start, consent, registration, auth, info
+from crm2.handlers import welcome as welcome_router
 from crm2.handlers.admin.broadcast import router as admin_broadcast_router
 from crm2.handlers.admin.logs import router as admin_logs_router
 # Админ-подсекции
@@ -79,6 +80,7 @@ dp = Dispatcher()
 
 # === Роутеры ================================================================
 dp.include_router(consent.router)
+dp.include_router(welcome_router.router)  # авто-приветствие новых /start
 dp.include_router(start.router)
 dp.include_router(registration.router)
 dp.include_router(auth.router)
