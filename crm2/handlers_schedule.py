@@ -80,8 +80,8 @@ async def send_nearest_session(message: Message, *, tg_id: int | None = None, li
 def _info_menu_kb() -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="1 поток · набор 09.2023")],
-        [KeyboardButton(text="2 поток · набор 09.2023")],
-        [KeyboardButton(text="Новый набор · 2025")],
+        [KeyboardButton(text="2 поток · набор 04.2025")],
+        [KeyboardButton(text="Новый набор · 2026")],
         # Кнопку «Мероприятия» добавим после подключения db/events.py
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
@@ -94,11 +94,11 @@ async def show_info_menu(message: Message) -> None:
 async def _show_stream1(message: Message):
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, stream_id=1)
 
-@router.message(F.text == "2 поток · набор 09.2023")
+@router.message(F.text == "2 поток · набор 04.2025")
 async def _show_stream2(message: Message):
     await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, stream_id=2)
 
-@router.message(F.text == "Новый набор · 2025")
+@router.message(F.text == "Новый набор · 2026")
 async def _show_new(message: Message):
     await message.answer("Начало занятий по мере комплектования группы.")
 
