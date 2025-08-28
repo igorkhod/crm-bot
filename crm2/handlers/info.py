@@ -113,12 +113,12 @@ async def session_details(cb: CallbackQuery):
 # --- ИИ-агенты ---
 from crm2.keyboards.agents import agents_menu_kb
 
-@ router.message(F.text == "🤖 ИИ-агенты требуется VPN")
+@ router.message(F.text == "🤖 ИИ-агенты")
 async def show_agents(message: Message):
     await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
 
 
-@ router.message(F.text == "🧘 Волевая медитация требуется VPN")
+@ router.message(F.text == "🧘 Волевая медитация")
 async def open_meditation(message: Message):
     await message.answer(
         "Открыть: [Волевая медитация](https://chatgpt.com/g/g-6871e6ae78c481918109e8813e51bc84-volevaia-meditatsiia)",
@@ -126,7 +126,7 @@ async def open_meditation(message: Message):
     )
 
 
-@ router.message(F.text == "⚖️ Психотехнологии гармонии требуется VPN")
+@ router.message(F.text == "⚖️ Психотехнологии гармонии")
 async def open_harmony(message: Message):
     await message.answer(
         "Открыть: [Психотехнологии гармонии](https://chatgpt.com/g/g-687493b5969c8191975066fd9970bd24-psikhotekhnologii-garmonii)",
