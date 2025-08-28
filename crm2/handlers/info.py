@@ -108,3 +108,46 @@ async def session_details(cb: CallbackQuery):
 
     await cb.message.answer(text, reply_markup=role_kb("user"))
     await cb.answer()
+
+# ** *a / crm2 / handlers / info.py
+# --- ИИ-агенты ---
+from crm2.keyboards.agents import agents_menu_kb
+
+@ router.message(F.text == "🤖 ИИ-агенты")
+async def show_agents(message: Message):
+    await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
+
+
+@ router.message(F.text == "🧘 Волевая медитация")
+async def open_meditation(message: Message):
+    await message.answer(
+        "Открыть: [Волевая медитация](https://chatgpt.com/g/g-6871e6ae78c481918109e8813e51bc84-volevaia-meditatsiia)",
+        disable_web_page_preview = True,
+    )
+
+
+@ router.message(F.text == "⚖️ Психотехнологии гармонии")
+async def open_harmony(message: Message):
+    await message.answer(
+        "Открыть: [Психотехнологии гармонии](https://chatgpt.com/g/g-687493b5969c8191975066fd9970bd24-psikhotekhnologii-garmonii)",
+        disable_web_page_preview = True,
+    )
+
+
+@router.message(F.text == "↩️ Главное меню")
+async def back_to_main(message: Message):
+    from crm2.keyboards import role_kb, guest_start_kb
+    from crm2.db.sqlite import DB_PATH
+    import sqlite3
+
+    # Определяем роль из базы
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute("SELECT role FROM users WHERE telegram_id=?", (message.from_user.id,))
+        row = cur.fetchone()
+        role = row["role"] if row else "curious"
+
+    if role in (None, "", "curious"):
+        await message.answer("Главное меню:", reply_markup=guest_start_kb())
+    else:
+        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
