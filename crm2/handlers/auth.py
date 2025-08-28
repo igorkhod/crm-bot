@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Хендлеры входа/авторизации."""
+# crm2/handlers/auth.py
+# """Хендлеры входа/авторизации."""
 
 from __future__ import annotations  # ← это должно быть первым код-оператором
 
@@ -19,7 +20,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_user_stream_title_by_tg
-from crm2.handlers_schedule import send_schedule_keyboard
+from crm2.handlers_schedule import send_nearest_session
 
 router = Router(name="auth")
 
@@ -196,7 +197,7 @@ async def login_password(message: Message, state: FSMContext) -> None:
 
     # Показать ближайшее занятие и клавиатуру расписания
     try:
-        await send_schedule_keyboard(message, tg_id=tg_id, limit=5)
+        await send_nearest_session(message, tg_id=tg_id, limit=5)
     except Exception:
         logging.exception("send_schedule_keyboard failed")
 

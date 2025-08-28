@@ -26,7 +26,8 @@ from crm2.db.auto_migrate import ensure_schedule_schema  # только схем
 from crm2.handlers import start, consent, registration, auth, info
 
 # Общие хэндлеры расписания (клавиатура ближайших занятий)
-from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard
+from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard, show_info_menu
+
 
 # Админ-подсекции
 from crm2.handlers.admin.panel import router as admin_panel_router
@@ -103,12 +104,12 @@ dp.include_router(admin_broadcast_router)
 # Кнопка «📅 Расписание» / текст «Расписание»
 @dp.message(F.text.func(_is_schedule_text))
 async def open_schedule_by_text(message: Message):
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+    await show_info_menu(message)
 
 # Команда /schedule
 @dp.message(Command("schedule"))
 async def open_schedule_by_cmd(message: Message):
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id)
+    await show_info_menu(message)
 
 # Кабинет пользователя + показ расписания
 @dp.message(F.text.in_({"/home", "Мой кабинет"}))

@@ -403,4 +403,54 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
 
     return None
 
+
+def get_upcoming_sessions_by_stream(stream_id: int, limit: int = 5) -> list[dict]:
+    """
+    Вернёт список ближайших занятий только для указанного потока.
+    Использует ту же логику, что и get_upcoming_sessions, но stream_id задаётся явно.
+    """
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        if _table_exists(con, "sessions"):
+            return _select_from_sessions(con, stream_id=stream_id, limit=limit)
+        if _table_exists(con, "events"):
+            return _select_from_events(con, stream_id=stream_id, limit=limit)
+        if _table_exists(con, "session_days"):
+            return _select_from_session_days(con, stream_id=stream_id, limit=limit)
+        return []
+
+
+def get_nearest_session_text() -> str | None:
+    """
+    Короткая строка «Ближайшее занятие: 13.09.2025 — 14.09.2025 • ПТГ-2».
+    Берём самое раннее занятие независимо от потока.
+    """
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        # Попробуем через session_days, т.к. там точнее даты
+        if _table_exists(con, "session_days") and _table_exists(con, "topics"):
+            cur = con.execute("""
+                SELECT MIN(sd.date) AS start_date,
+                       MAX(sd.date) AS end_date,
+                       t.code AS topic_code
+                FROM session_days sd
+                JOIN topics t ON t.id = sd.topic_id
+                WHERE date(sd.date) >= date('now')
+                GROUP BY t.code
+                ORDER BY date(start_date)
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if row:
+                s = row["start_date"]
+                e = row["end_date"]
+                code = row["topic_code"] or ""
+                if s and e and s != e:
+                    dates = f"{s} — {e}"
+                else:
+                    dates = s or e or "—"
+                return f"Ближайшее занятие: {dates} • {code}"
+        return None
+
+
 # конец файла # crm2\db\sessions.py
