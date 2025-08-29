@@ -115,8 +115,25 @@ from crm2.keyboards.agents import agents_menu_kb
 
 @ router.message(F.text == "🤖 ИИ-агенты")
 async def show_agents(message: Message):
-    await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
+#  на время доработки ИИ-агентов
+#     await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
+    from crm2.keyboards import role_kb, guest_start_kb
+    from crm2.db.sqlite import DB_PATH
+    import sqlite3
 
+    await message.answer("🤖 Раздел «ИИ-агенты» временно в доработке.")
+
+    # Возвращаем главное меню в соответствии с ролью пользователя
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute("SELECT role FROM users WHERE telegram_id=? LIMIT 1", (message.from_user.id,))
+        row = cur.fetchone()
+        role = row["role"] if row else "curious"
+
+    if role in (None, "", "curious"):
+        await message.answer("Главное меню:", reply_markup=guest_start_kb())
+    else:
+        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
 
 @ router.message(F.text == "🧘 Волевая медитация (необходима VPN)")
 async def open_meditation(message: Message):

@@ -23,7 +23,7 @@ def role_kb(role: str) -> ReplyKeyboardMarkup:
     if role in ("user", "long_user"):
         rows = [
             [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="ℹ️ Профиль")],
-            [KeyboardButton(text="🤖 ИИ-агенты"), KeyboardButton(text="↩️ Выйти в меню")],
+            [KeyboardButton(text="🤖 ИИ-агенты"), KeyboardButton(text="↩️ Выйти в меню"), KeyboardButton(text="📖 О проекте")],
         ]
         return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -55,7 +55,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 def guest_start_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="🆕 Зарегистрироваться")],
+            [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="🆕 Зарегистрироваться"), KeyboardButton(text="📖 О проекте")],
             [KeyboardButton(text="👀 Просто посмотреть")],
         ],
         resize_keyboard=True
