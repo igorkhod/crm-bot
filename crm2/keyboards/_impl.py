@@ -56,7 +56,7 @@ def guest_start_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🔐 Войти"), KeyboardButton(text="🆕 Зарегистрироваться"), KeyboardButton(text="📖 О проекте")],
-            [KeyboardButton(text="👀 Просто посмотреть")],
+            # [KeyboardButton(text="👀 Просто посмотреть")],
         ],
         resize_keyboard=True
     )

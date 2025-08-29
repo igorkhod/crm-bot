@@ -10,8 +10,13 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from crm2.keyboards import role_kb
+from crm2.keyboards import role_kb, guest_start_kb
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
+from crm2.keyboards.project import project_menu_kb
+import sqlite3
+from crm2.db.sqlite import DB_PATH
+
+
 
 router = Router(name="info")
 
@@ -162,6 +167,42 @@ async def back_to_main(message: Message):
         con.row_factory = sqlite3.Row
         cur = con.execute("SELECT role FROM users WHERE telegram_id=?", (message.from_user.id,))
         row = cur.fetchone()
+        role = row["role"] if row else "curious"
+
+    if role in (None, "", "curious"):
+        await message.answer("Главное меню:", reply_markup=guest_start_kb())
+    else:
+        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
+
+# --- О проекте ---
+from crm2.keyboards.project import project_menu_kb
+from crm2.keyboards import role_kb, guest_start_kb
+import sqlite3
+from crm2.db.sqlite import DB_PATH
+
+@router.message(F.text == "📖 О проекте")
+async def show_project_menu(message: Message):
+    await message.answer("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
+
+@router.message(F.text == "Как проводятся занятия")
+async def how_sessions_go(message: Message):
+    text = (
+        "🧘‍♂️ *Как проходят занятия Psytech*\n\n"
+        "Занятия строятся в формате психотехнологических практик.\n\n"
+        "🔹 Теория — краткие вводные идеи, чтобы направить внимание.\n"
+        "🔹 Практика — упражнения на концентрацию, деконцентрацию, "
+        "управление состояниями и работу с волей.\n"
+        "🔹 Рефлексия — обсуждение опыта и интеграция его в жизнь.\n\n"
+        "Мы соединяем древние традиции и современные методы, чтобы "
+        "человек обрел ясность, устойчивость и гармонию."
+    )
+    await message.answer(text, parse_mode="Markdown")
+
+@router.message(F.text == "↩️ Главное меню")
+async def back_to_main_from_project(message: Message):
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        row = con.execute("SELECT role FROM users WHERE telegram_id = ? LIMIT 1", (message.from_user.id,)).fetchone()
         role = row["role"] if row else "curious"
 
     if role in (None, "", "curious"):
