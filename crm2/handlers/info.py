@@ -7,16 +7,10 @@
 from __future__ import annotations
 
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery
 
-from crm2.keyboards import role_kb, guest_start_kb
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
-from crm2.keyboards.project import project_menu_kb
-import sqlite3
-from crm2.db.sqlite import DB_PATH
-
-
 
 router = Router(name="info")
 
@@ -114,46 +108,35 @@ async def session_details(cb: CallbackQuery):
     await cb.message.answer(text, reply_markup=role_kb("user"))
     await cb.answer()
 
+
 # ** *a / crm2 / handlers / info.py
 # --- ИИ-агенты ---
 from crm2.keyboards.agents import agents_menu_kb
 
-@ router.message(F.text == "🤖 ИИ-агенты")
+
+@router.message(F.text == "🤖 ИИ-агенты")
 async def show_agents(message: Message):
-#  на время доработки ИИ-агентов
-#     await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
-    from crm2.keyboards import role_kb, guest_start_kb
-    from crm2.db.sqlite import DB_PATH
-    import sqlite3
+    await message.answer("Выберите ИИ-агента:", reply_markup=agents_menu_kb())
 
-    await message.answer("🤖 Раздел «ИИ-агенты» временно в доработке.")
 
-    # Возвращаем главное меню в соответствии с ролью пользователя
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        cur = con.execute("SELECT role FROM users WHERE telegram_id=? LIMIT 1", (message.from_user.id,))
-        row = cur.fetchone()
-        role = row["role"] if row else "curious"
-
-    if role in (None, "", "curious"):
-        await message.answer("Главное меню:", reply_markup=guest_start_kb())
-    else:
-        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
-
-@ router.message(F.text == "🧘 Волевая медитация (необходима VPN)")
+@router.message(F.text == "🧘 Волевая медитация (необходима VPN)")
 async def open_meditation(message: Message):
     await message.answer(
         "Открыть: [Волевая медитация](https://chatgpt.com/g/g-6871e6ae78c481918109e8813e51bc84-volevaia-meditatsiia)",
-        disable_web_page_preview = True,
+        disable_web_page_preview=True,
     )
 
 
-@ router.message(F.text == "⚖️ Психотехнологии гармонии (необходима VPN)")
+@router.message(F.text == "⚖️ Психотехнологии гармонии (необходима VPN)")
 async def open_harmony(message: Message):
     await message.answer(
         "Открыть: [Психотехнологии гармонии](https://chatgpt.com/g/g-687493b5969c8191975066fd9970bd24-psikhotekhnologii-garmonii)",
-        disable_web_page_preview = True,
+        disable_web_page_preview=True,
     )
+
+    @router.message(F.text == "Инструкция по подключению ChatGPT-АГЕНТОВ")
+    async def open_agents_instruction(message: Message):
+        await message.answer("Инструкция по подключению ChatGPT-АГЕНТОВ")
 
 
 @router.message(F.text == "↩️ Главное меню")
@@ -174,15 +157,18 @@ async def back_to_main(message: Message):
     else:
         await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
 
+
 # --- О проекте ---
 from crm2.keyboards.project import project_menu_kb
 from crm2.keyboards import role_kb, guest_start_kb
 import sqlite3
 from crm2.db.sqlite import DB_PATH
 
+
 @router.message(F.text == "📖 О проекте")
 async def show_project_menu(message: Message):
     await message.answer("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
+
 
 @router.message(F.text == "Как проводятся занятия")
 async def how_sessions_go(message: Message):
@@ -197,6 +183,7 @@ async def how_sessions_go(message: Message):
         "человек обрел ясность, устойчивость и гармонию."
     )
     await message.answer(text, parse_mode="Markdown")
+
 
 @router.message(F.text == "↩️ Главное меню")
 async def back_to_main_from_project(message: Message):
