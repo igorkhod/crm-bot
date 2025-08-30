@@ -8,7 +8,7 @@ from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardB
 from crm2.db.sessions import (
     get_upcoming_sessions,
     get_session_by_id,
-    get_upcoming_sessions_by_stream,  # ← потребуется функция в sessions.py
+    get_upcoming_sessions_by_cohort,  # ← потребуется функция в sessions.py
 )
 
 from crm2.keyboards.schedule import build_schedule_keyboard, format_range
@@ -21,7 +21,7 @@ async def send_schedule_keyboard(
     *,
     limit: int = 5,
     tg_id: int | None = None,
-    stream_id: int | None = None
+    cohort_id: int | None = None
 ) -> None:
     """
     Renders:
@@ -29,8 +29,8 @@ async def send_schedule_keyboard(
       2) Inline keyboard with all available upcoming dates (date range + code).
     """
     try:
-        if stream_id is not None:
-            sessions = get_upcoming_sessions_by_stream(stream_id=stream_id, limit=limit) or []
+        if cohort_id is not None:
+            sessions = get_upcoming_sessions_by_cohort(cohort_id=cohort_id, limit=limit) or []
         else:
             sessions = get_upcoming_sessions(limit=limit, tg_id=tg_id) or []
 
@@ -51,13 +51,13 @@ async def send_schedule_keyboard(
     if code:
         first_line += f" • {code}"
 # добавим поток только если показываем "общее расписание"
-    if stream_id is None and first.get("stream_id"):
-        first_line += f" · поток {first['stream_id']}"
+    if cohort_id is None and first.get("cohort_id"):
+        first_line += f" · поток {first['cohort_id']}"
         await message.answer(first_line)
 # Keyboard with all items
     await message.answer(
         "Выберите дату занятия для получения более детальной информации:",
-        reply_markup=build_schedule_keyboard(sessions, show_stream=(stream_id is None)),
+        reply_markup=build_schedule_keyboard(sessions, show_cohort=(cohort_id is None)),
     )
 
 
@@ -103,12 +103,12 @@ async def show_info_menu(message: Message) -> None:
 
 # --- Обработчики пунктов меню выбора потока ---
 @router.message(F.text == "1 поток · набор 09.2023")
-async def _show_stream1(message: Message):
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, stream_id=1)
+async def _show_cohort1(message: Message):
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, cohort_id=1)
 
 @router.message(F.text == "2 поток · набор 04.2025")
-async def _show_stream2(message: Message):
-    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, stream_id=2)
+async def _show_cohort2(message: Message):
+    await send_schedule_keyboard(message, limit=5, tg_id=message.from_user.id, cohort_id=2)
 
 @router.message(F.text == "Новый набор · 2026")
 async def _show_new(message: Message):
@@ -121,7 +121,7 @@ async def _show_new(message: Message):
 @router.message(F.text == "Всё расписание")
 async def _show_all_schedule(message: Message):
     """Смешанное расписание всех потоков, сортированное по дате начала"""
-    await send_schedule_keyboard(message, limit=10, tg_id=message.from_user.id, stream_id=None)
+    await send_schedule_keyboard(message, limit=10, tg_id=message.from_user.id, cohort_id=None)
 
 
 @router.message(F.text == "Главное меню")

@@ -7,16 +7,16 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
 import sqlite3
 
-from crm2.keyboards.admin_attendance import choose_stream_kb
+from crm2.keyboards.admin_attendance import choose_cohort_kb
 from crm2.keyboards.session_picker import build_session_picker
-from crm2.db.sessions import get_upcoming_sessions_by_stream, get_recent_past_sessions_by_stream
-from crm2.db.users import list_users_by_stream
+from crm2.db.sessions import get_upcoming_sessions_by_cohort, get_recent_past_sessions_by_cohort
+from crm2.db.users import list_users_by_cohort
 from crm2.db.sqlite import DB_PATH
 
 router = Router(name="attendance")
 
 class AttStates(StatesGroup):
-    stream = State()
+    cohort = State()
     mode = State()           # 'att' | 'pay'
     session = State()        # выбранная сессия (для att/pay)
 
@@ -24,31 +24,31 @@ class AttStates(StatesGroup):
 @router.message(F.text == "📊 Посещение")
 async def attendance_entry(message: Message, state: FSMContext):
     await state.clear()
-    await state.set_state(AttStates.stream)
-    await message.answer("Выберите поток:", reply_markup=choose_stream_kb())
+    await state.set_state(AttStates.cohort)
+    await message.answer("Выберите поток:", reply_markup=choose_cohort_kb())
 
 # --- выбор потока ---
-@router.message(AttStates.stream, F.text.in_(["1 поток · набор 09.2023", "2 поток · набор 04.2025"]))
-async def pick_stream(message: Message, state: FSMContext):
-    stream_id = 1 if message.text.startswith("1 поток") else 2
-    await state.update_data(stream_id=stream_id)
+@router.message(AttStates.cohort, F.text.in_(["1 поток · набор 09.2023", "2 поток · набор 04.2025"]))
+async def pick_cohort(message: Message, state: FSMContext):
+    cohort_id = 1 if message.text.startswith("1 поток") else 2
+    await state.update_data(cohort_id=cohort_id)
     await message.answer(
         "Поток выбран. Выберите действие:\n"
         "• ✍️ Внести данные — отметить «был/не был»\n"
         "• 💳 Оплата — отметить «оплатил/не оплатил»\n"
         "• 👁 Посмотреть — показать ближайшие занятия",
-        reply_markup=choose_stream_kb()
+        reply_markup=choose_cohort_kb()
     )
 
 # --- режимы: внести данные / оплата / посмотреть ---
-@router.message(AttStates.stream, F.text == "👁 Посмотреть")
-async def show_stream_sessions(message: Message, state: FSMContext):
+@router.message(AttStates.cohort, F.text == "👁 Посмотреть")
+async def show_cohort_sessions(message: Message, state: FSMContext):
     data = await state.get_data()
-    stream_id = data.get("stream_id")
-    if not stream_id:
+    cohort_id = data.get("cohort_id")
+    if not cohort_id:
         await message.answer("Сначала выберите поток.")
         return
-    sessions = get_upcoming_sessions_by_stream(stream_id, limit=10)
+    sessions = get_upcoming_sessions_by_cohort(cohort_id, limit=10)
     if not sessions:
         await message.answer("Ближайших занятий пока нет.")
         return
@@ -60,16 +60,16 @@ async def show_stream_sessions(message: Message, state: FSMContext):
         lines.append("• " + dates + (f" • {code}" if code else ""))
     await message.answer("\n".join(lines))
 
-@router.message(AttStates.stream, F.text == "✍️ Внести данные")
+@router.message(AttStates.cohort, F.text == "✍️ Внести данные")
 async def enter_attendance(message: Message, state: FSMContext):
     data = await state.get_data()
-    stream_id = data.get("stream_id")
-    if not stream_id:
+    cohort_id = data.get("cohort_id")
+    if not cohort_id:
         await message.answer("Сначала выберите поток.")
         return
     await state.set_state(AttStates.mode)
     await state.update_data(mode="att")
-    sessions = get_recent_past_sessions_by_stream(stream_id, limit=5)
+    sessions = get_recent_past_sessions_by_cohort(cohort_id, limit=5)
     if not sessions:
         await message.answer("Прошедших занятий не найдено.")
         return
@@ -77,16 +77,16 @@ async def enter_attendance(message: Message, state: FSMContext):
     await message.answer(" ",
                          reply_markup=build_session_picker(sessions, mode="att"))
 
-@router.message(AttStates.stream, F.text == "💳 Оплата")
+@router.message(AttStates.cohort, F.text == "💳 Оплата")
 async def enter_payments(message: Message, state: FSMContext):
     data = await state.get_data()
-    stream_id = data.get("stream_id")
-    if not stream_id:
+    cohort_id = data.get("cohort_id")
+    if not cohort_id:
         await message.answer("Сначала выберите поток.")
         return
     await state.set_state(AttStates.mode)
     await state.update_data(mode="pay")
-    sessions = get_recent_past_sessions_by_stream(stream_id, limit=5)
+    sessions = get_recent_past_sessions_by_cohort(cohort_id, limit=5)
     if not sessions:
         await message.answer("Прошедших занятий не найдено.")
         return
@@ -102,8 +102,8 @@ async def on_pick_session(cb: CallbackQuery, state: FSMContext):
     await state.update_data(mode=mode, session_id=session_id)
 
     data = await state.get_data()
-    stream_id = data.get("stream_id")
-    users = list_users_by_stream(stream_id)
+    cohort_id = data.get("cohort_id")
+    users = list_users_by_cohort(cohort_id)
     if not users:
         await cb.message.answer("В потоке пока нет пользователей.")
         await cb.answer()

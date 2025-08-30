@@ -64,7 +64,7 @@ def _ensure_min_schema() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER UNIQUE,
                 cohort_id INTEGER,
-                stream_id INTEGER,
+                cohort_id INTEGER,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             '''

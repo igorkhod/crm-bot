@@ -23,7 +23,7 @@ _COL_SYNONYMS = {
     "code": ["topic_code", "code", "код", "тема_код", "код_темы"],
     "title": ["title", "name", "тема", "тема_название", "название"],
     "annotation": ["annotation", "ann", "описание", "краткое_описание", "desc", "description"],
-    "stream": ["stream_id", "cohort_id", "cohort", "поток", "группа"],
+    "cohort": ["cohort_id", "cohort_id", "cohort", "поток", "группа"],
 }
 
 ISO_RE = re.compile(r"^\s*\d{4}-\d{2}-\d{2}\s*$")  # YYYY-MM-DD
@@ -40,7 +40,7 @@ def _pick(mapping: Dict[str, int], names: List[str]) -> Optional[int]:
     return None
 
 
-def _detect_stream_from_filename(path: Path) -> Optional[int]:
+def _detect_cohort_from_filename(path: Path) -> Optional[int]:
     m = re.search(r"(\d+)_cohort", path.stem)
     if m:
         try:
@@ -58,10 +58,10 @@ class Row:
     code: Optional[str]
     title: Optional[str]
     annotation: Optional[str]
-    stream_id: Optional[int]
+    cohort_id: Optional[int]
 
 
-def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
+def _iter_xlsx(path: Path, default_cohort: Optional[int]) -> Iterator[Row]:
     try:
         import pandas as pd  # type: ignore
     except Exception as e:
@@ -84,7 +84,7 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
     idx_code = _pick(cols_norm_map, _COL_SYNONYMS["code"])
     idx_title = _pick(cols_norm_map, _COL_SYNONYMS["title"])
     idx_ann = _pick(cols_norm_map, _COL_SYNONYMS["annotation"])
-    idx_stream = _pick(cols_norm_map, _COL_SYNONYMS["stream"])
+    idx_cohort = _pick(cols_norm_map, _COL_SYNONYMS["cohort"])
 
     # helper
     def _to_date(v):
@@ -160,19 +160,19 @@ def _iter_xlsx(path: Path, default_stream: Optional[int]) -> Iterator[Row]:
         title = _cell(idx_title)
         ann = _cell(idx_ann)
 
-        # stream
-        stream_id = None
-        sv = _cell(idx_stream)
+        # cohort
+        cohort_id = None
+        sv = _cell(idx_cohort)
         if sv is not None:
             try:
-                stream_id = int(float(sv))
+                cohort_id = int(float(sv))
             except Exception:
-                stream_id = default_stream
+                cohort_id = default_cohort
         else:
-            stream_id = default_stream
+            cohort_id = default_cohort
 
         for ds in dates_list:
-            yield Row(date=ds, code=code, title=title, annotation=ann, stream_id=stream_id)
+            yield Row(date=ds, code=code, title=title, annotation=ann, cohort_id=cohort_id)
 
 
 # --------- sync into DB ---------
@@ -182,7 +182,7 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
     XLSX с колонками: No | start_date | end_date | topic_code | title | annotation
     - Диапазоны дат раскрываются в отдельные дни.
     - topics обновляются только реальными title/annotation из файла.
-    - session_days upsert по (date, stream_id).
+    - session_days upsert по (date, cohort_id).
     """
     added = 0
     with get_db_connection() as con:
@@ -194,8 +194,8 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
                 log.warning("[SCHEDULE] skip non-existent file: %s", p)
                 continue
 
-            default_stream = _detect_stream_from_filename(p)
-            for r in _iter_xlsx(p, default_stream):
+            default_cohort = _detect_cohort_from_filename(p)
+            for r in _iter_xlsx(p, default_cohort):
                 topic_id = None
                 if r.code:
                     cur.execute("INSERT OR IGNORE INTO topics(code) VALUES (?)", (r.code,))
@@ -208,13 +208,13 @@ def sync_schedule_from_files(files: Iterable[str]) -> int:
 
                 cur.execute(
                     """
-                    INSERT INTO session_days(date, stream_id, topic_id, topic_code)
+                    INSERT INTO session_days(date, cohort_id, topic_id, topic_code)
                     VALUES (?, ?, ?, ?)
-                    ON CONFLICT(date, stream_id) DO UPDATE SET
+                    ON CONFLICT(date, cohort_id) DO UPDATE SET
                         topic_id=COALESCE(excluded.topic_id, session_days.topic_id),
                         topic_code=COALESCE(excluded.topic_code, session_days.topic_code)
                     """,
-                    (r.date, r.stream_id, topic_id, r.code),
+                    (r.date, r.cohort_id, topic_id, r.code),
                 )
                 # rowcount может быть 1 и при INSERT, и при UPDATE — нам подходит
                 if cur.rowcount is not None and cur.rowcount > 0:

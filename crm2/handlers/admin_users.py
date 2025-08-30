@@ -21,12 +21,12 @@ async def admin_users_entry(message: Message):
 # 2) Выбор группы (пока — только подтверждаем выбор; дальше подцепим выдачу списка)
 @router.callback_query(F.data.startswith("users:group:"))
 async def admin_users_pick_group(cb: CallbackQuery):
-    group_key = cb.data.split(":", 2)[-1]  # stream_1 | stream_2 | new_intake | alumni | admins
+    group_key = cb.data.split(":", 2)[-1]  # cohort_1 | cohort_2 | new_intake | alumni | admins
     # На этом шаге мы лишь подтверждаем выбор и остаёмся на том же сообщении.
     # Далее сюда подключим выборку из БД и пагинацию.
     mapping = {
-        "stream_1": "1 поток",
-        "stream_2": "2 поток",
+        "cohort_1": "1 поток",
+        "cohort_2": "2 поток",
         "new_intake": "Новый набор",
         "alumni": "Окончившие",
         "admins": "Админы",

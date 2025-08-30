@@ -12,24 +12,24 @@ def _users_columns(con: sqlite3.Connection) -> set:
     rows = con.execute("PRAGMA table_info(users)").fetchall()
     return {r[1] for r in rows}  # r[1] = name
 
-def _stream_expr(cols: set) -> str:
+def _cohort_expr(cols: set) -> str:
     """
     Возвращает корректное SQL-выражение для 'потока':
-    - если есть stream_id → stream_id
+    - если есть cohort_id → cohort_id
     - иначе если есть cohort_id → cohort_id
     - иначе → NULL
     """
-    if "stream_id" in cols:
-        return "stream_id"
+    if "cohort_id" in cols:
+        return "cohort_id"
     if "cohort_id" in cols:
         return "cohort_id"
     return "NULL"
 
 def _where_for_group(group_key: str, cols: set) -> str:
-    s = _stream_expr(cols)
-    if group_key == "stream_1":
+    s = _cohort_expr(cols)
+    if group_key == "cohort_1":
         return f"{s} = 1"
-    if group_key == "stream_2":
+    if group_key == "cohort_2":
         return f"{s} = 2"
     if group_key == "new_intake":
         # нет потока и не админ/не alumni
@@ -50,8 +50,8 @@ def _row_to_dict(row: Row) -> dict:
         "nickname": row["nickname"] if "nickname" in k else None,
         "full_name": row["full_name"] if "full_name" in k else None,
         "role": row["role"] if "role" in k else None,
-        # В SELECT мы возвращаем псевдоколонку AS stream_id — читаем её, если есть
-        "stream_id": row["stream_id"] if "stream_id" in k else None,
+        # В SELECT мы возвращаем псевдоколонку AS cohort_id — читаем её, если есть
+        "cohort_id": row["cohort_id"] if "cohort_id" in k else None,
         # На всякий случай — если когда-то вернём cohort_id в SELECT
         "cohort_id": row["cohort_id"] if "cohort_id" in k else None,
     }
@@ -70,12 +70,12 @@ def list_users(group_key: str, offset: int, limit: int) -> List[dict]:
         con.row_factory = Row
         cols = _users_columns(con)
         where = _where_for_group(group_key, cols)
-        s = _stream_expr(cols)  # корректное выражение для SELECT
+        s = _cohort_expr(cols)  # корректное выражение для SELECT
 
         cur = con.execute(
             f"""
             SELECT id, telegram_id, nickname, full_name, role,
-                   {s} AS stream_id
+                   {s} AS cohort_id
             FROM users
             WHERE {where}
             ORDER BY COALESCE(full_name, nickname) COLLATE NOCASE

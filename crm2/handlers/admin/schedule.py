@@ -3,7 +3,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest
 
-from crm2.keyboards.admin_schedule import schedule_menu_kb, schedule_streams_kb, pager_kb
+from crm2.keyboards.admin_schedule import schedule_menu_kb, schedule_cohorts_kb, pager_kb
 from crm2.db import schedule_repo as repo
 
 router = Router(name="admin_schedule")
@@ -26,34 +26,34 @@ async def _render_menu(msg: Message):
 @router.callback_query(F.data == "sch:trainings")
 async def trainings_entry(cb: CallbackQuery):
     try:
-        await cb.message.edit_text("Выберите поток:", reply_markup=schedule_streams_kb())
+        await cb.message.edit_text("Выберите поток:", reply_markup=schedule_cohorts_kb())
     except TelegramBadRequest:
-        await cb.message.answer("Выберите поток:", reply_markup=schedule_streams_kb())
+        await cb.message.answer("Выберите поток:", reply_markup=schedule_cohorts_kb())
     await cb.answer()
 
-@router.callback_query(F.data.startswith("sch:tr:stream:"))
-async def trainings_stream(cb: CallbackQuery):
-    stream_id = int(cb.data.split(":")[-1])
-    await _render_trainings(cb.message, stream_id, page=1)
+@router.callback_query(F.data.startswith("sch:tr:cohort:"))
+async def trainings_cohort(cb: CallbackQuery):
+    cohort_id = int(cb.data.split(":")[-1])
+    await _render_trainings(cb.message, cohort_id, page=1)
     await cb.answer()
 
 @router.callback_query(F.data.startswith("sch:tr:page:"))
 async def trainings_page(cb: CallbackQuery):
-    # формат: sch:tr:page:<page>:<stream_id>
+    # формат: sch:tr:page:<page>:<cohort_id>
     parts = cb.data.split(":")
     page = int(parts[3])
-    stream_id = int(parts[4])
-    await _render_trainings(cb.message, stream_id, page)
+    cohort_id = int(parts[4])
+    await _render_trainings(cb.message, cohort_id, page)
     await cb.answer()
 
-async def _render_trainings(msg: Message, stream_id: int, page: int):
-    total = repo.count_trainings(stream_id)
+async def _render_trainings(msg: Message, cohort_id: int, page: int):
+    total = repo.count_trainings(cohort_id)
     pages = max(1, (total + PAGE - 1) // PAGE)
     page = max(1, min(page, pages))
     offset = (page - 1) * PAGE
-    items = repo.list_trainings(stream_id, offset, PAGE)
+    items = repo.list_trainings(cohort_id, offset, PAGE)
 
-    lines = [f"🎓 Тренинги — поток {stream_id} · найдено: {total}", ""]
+    lines = [f"🎓 Тренинги — поток {cohort_id} · найдено: {total}", ""]
     for it in items:
         date = it["date"]
         code = it.get("topic_code") or ""
@@ -62,7 +62,7 @@ async def _render_trainings(msg: Message, stream_id: int, page: int):
         lines.append(f"• {date} · {code}{sep}{title}")
     text = "\n".join(lines) if items or total == 0 else "Пока пусто…"
 
-    kb = pager_kb(prefix="sch:tr:page", page=page, pages=pages, suffix=str(stream_id))
+    kb = pager_kb(prefix="sch:tr:page", page=page, pages=pages, suffix=str(cohort_id))
     try:
         await msg.edit_text(text, reply_markup=kb)
     except TelegramBadRequest as e:

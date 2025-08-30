@@ -44,7 +44,7 @@ def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
             topic_code  TEXT,                   -- ссылка на topics.code
             title       TEXT,
             annotation  TEXT,
-            stream_id   INTEGER                 -- номер потока (1/2/…)
+            cohort_id   INTEGER                 -- номер потока (1/2/…)
         );
         """,
     )
@@ -52,7 +52,7 @@ def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
     _exec(con, "CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_date);")
     _exec(
         con,
-        "CREATE INDEX IF NOT EXISTS idx_sessions_stream_start ON sessions(stream_id, start_date);",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start ON sessions(cohort_id, start_date);",
     )
 
 

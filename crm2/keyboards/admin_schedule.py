@@ -12,10 +12,10 @@ def schedule_menu_kb() -> InlineKeyboardMarkup:
     kb.adjust(2, 2, 1)
     return kb.as_markup()
 
-def schedule_streams_kb() -> InlineKeyboardMarkup:
+def schedule_cohorts_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text="1 поток", callback_data="sch:tr:stream:1")
-    kb.button(text="2 поток", callback_data="sch:tr:stream:2")
+    kb.button(text="1 поток", callback_data="sch:tr:cohort:1")
+    kb.button(text="2 поток", callback_data="sch:tr:cohort:2")
     kb.button(text="⬅️ Назад", callback_data="adm:schedule")
     kb.adjust(2, 1)
     return kb.as_markup()
@@ -24,7 +24,7 @@ def pager_kb(prefix: str, page: int, pages: int, suffix: str = "") -> InlineKeyb
     kb = InlineKeyboardBuilder()
     prev_p = max(1, page - 1)
     next_p = min(pages, page + 1)
-    # prefix: 'sch:tr:page:1'  (если есть суффикс, например stream_id)
+    # prefix: 'sch:tr:page:1'  (если есть суффикс, например cohort_id)
     if suffix:
         kb.button(text="◀️", callback_data=f"{prefix}:{prev_p}:{suffix}")
         kb.button(text=f"{page}/{pages}", callback_data="noop")

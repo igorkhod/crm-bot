@@ -92,15 +92,15 @@ def verify_password(nickname: str, password: str) -> bool:
 
 
 # --- поток пользователя по tg_id ---------------------------------------------
-def get_user_stream_id_by_tg(tg_id: int) -> Optional[int]:
+def get_user_cohort_id_by_tg(tg_id: int) -> Optional[int]:
     """
-    Возвращает stream_id пользователя по его Telegram ID, если он есть в participants.
+    Возвращает cohort_id пользователя по его Telegram ID, если он есть в participants.
     """
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             """
-            SELECT p.stream_id
+            SELECT p.cohort_id
             FROM users u
             JOIN participants p ON p.user_id = u.id
             WHERE u.telegram_id = ?
@@ -109,34 +109,34 @@ def get_user_stream_id_by_tg(tg_id: int) -> Optional[int]:
             """,
             (tg_id,),
         ).fetchone()
-    return int(row["stream_id"]) if row else None
+    return int(row["cohort_id"]) if row else None
 
 
-def get_user_stream_title_by_tg(tg_id: int) -> Optional[str]:
+def get_user_cohort_title_by_tg(tg_id: int) -> Optional[str]:
     """
-    Возвращает название потока (streams.title) пользователя по его Telegram ID.
+    Возвращает название потока (cohorts.title) пользователя по его Telegram ID.
     """
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             """
-            SELECT s.title AS stream_title
+            SELECT s.title AS cohort_title
             FROM users u
             JOIN participants p ON p.user_id = u.id
-            JOIN streams      s ON s.id = p.stream_id
+            JOIN cohorts      s ON s.id = p.cohort_id
             WHERE u.telegram_id = ?
             ORDER BY p.id
             LIMIT 1
             """,
             (tg_id,),
         ).fetchone()
-    return str(row["stream_title"]) if row else None
+    return str(row["cohort_title"]) if row else None
 
 
 # Для обратной совместимости: код потока == title (в твоей схеме нет s.code)
-def get_user_stream_code_by_tg(tg_id: int) -> Optional[str]:
+def get_user_cohort_code_by_tg(tg_id: int) -> Optional[str]:
     """
     Совместимость с существующими вызовами.
-    Возвращает то же, что и get_user_stream_title_by_tg.
+    Возвращает то же, что и get_user_cohort_title_by_tg.
     """
-    return get_user_stream_title_by_tg(tg_id)
+    return get_user_cohort_title_by_tg(tg_id)

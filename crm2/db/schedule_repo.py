@@ -11,12 +11,12 @@ def _dicts(rows: List[Row]) -> List[Dict[str, Any]]:
     return out
 
 # ---------- ТРЕНИНГИ ПО ПОТОКАМ (session_days) ----------
-def count_trainings(stream_id: int) -> int:
+def count_trainings(cohort_id: int) -> int:
     with get_db_connection() as con:
-        cur = con.execute("SELECT COUNT(*) FROM session_days WHERE stream_id = ?", (stream_id,))
+        cur = con.execute("SELECT COUNT(*) FROM session_days WHERE cohort_id = ?", (cohort_id,))
         return int(cur.fetchone()[0] or 0)
 
-def list_trainings(stream_id: int, offset: int, limit: int) -> List[Dict[str, Any]]:
+def list_trainings(cohort_id: int, offset: int, limit: int) -> List[Dict[str, Any]]:
     # подцепим title темы по topic_code или topic_id
     with get_db_connection() as con:
         con.row_factory = Row
@@ -28,10 +28,10 @@ def list_trainings(stream_id: int, offset: int, limit: int) -> List[Dict[str, An
             FROM session_days sd
             LEFT JOIN topics t
               ON (t.code = sd.topic_code) OR (t.id = sd.topic_id)
-            WHERE sd.stream_id = ?
+            WHERE sd.cohort_id = ?
             ORDER BY sd.date ASC, sd.id ASC
             LIMIT ? OFFSET ?
-        """, (stream_id, limit, offset))
+        """, (cohort_id, limit, offset))
         return _dicts(cur.fetchall())
 
 # ---------- МЕРОПРИЯТИЯ (events) ----------
@@ -89,7 +89,7 @@ def list_all(offset: int, limit: int) -> List[Dict[str, Any]]:
                 SELECT sd.date || ' 00:00' AS start_at,
                        'training'           AS kind,
                        COALESCE(sd.topic_code,'') || CASE WHEN t.title IS NOT NULL AND t.title != '' THEN ' — ' || t.title ELSE '' END AS title,
-                       'Поток: ' || CAST(sd.stream_id AS TEXT) AS details
+                       'Поток: ' || CAST(sd.cohort_id AS TEXT) AS details
                 FROM session_days sd
                 LEFT JOIN topics t
                   ON (t.code = sd.topic_code) OR (t.id = sd.topic_id)

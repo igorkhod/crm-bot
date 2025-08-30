@@ -5,8 +5,8 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 GROUPS = [
-    ("1 поток", "users:group:stream_1"),
-    ("2 поток", "users:group:stream_2"),
+    ("1 поток", "users:group:cohort_1"),
+    ("2 поток", "users:group:cohort_2"),
     ("Новый набор", "users:group:new_intake"),
     ("Окончившие", "users:group:alumni"),
     ("Админы", "users:group:admins"),

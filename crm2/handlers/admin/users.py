@@ -29,8 +29,8 @@ async def admin_users_groups(cb: CallbackQuery):
 
 def _group_human(group_key: str) -> str:
     return {
-        "stream_1": "1 поток",
-        "stream_2": "2 поток",
+        "cohort_1": "1 поток",
+        "cohort_2": "2 поток",
         "new_intake": "Новый набор",
         "alumni": "Окончившие",
         "admins": "Админы",
@@ -41,10 +41,10 @@ def _user_line(u: dict) -> str:
     name = (u.get("full_name") or u.get("nickname") or "—").strip()
     nick = u.get("nickname") or ""
     role = u.get("role") or "user"
-    stream = u.get("stream_id") or u.get("cohort_id")
+    cohort = u.get("cohort_id") or u.get("cohort_id")
     nick_txt = f" (@{nick})" if nick else ""
-    stream_txt = f" • поток: {stream}" if stream is not None else ""
-    return f"• {name}{nick_txt} — {role}{stream_txt}"
+    cohort_txt = f" • поток: {cohort}" if cohort is not None else ""
+    return f"• {name}{nick_txt} — {role}{cohort_txt}"
 
 
 async def _show_group_page(cb_or_msg, group_key: str, page: int):
@@ -81,7 +81,7 @@ async def _show_group_page(cb_or_msg, group_key: str, page: int):
 @router.callback_query(F.data.startswith("users:group:"))
 async def admin_users_pick_group(cb: CallbackQuery):
     # было: cb.data.split(":", 2)[-1] → давало "group"
-    group_key = cb.data.split(":")[-1]  # теперь корректно: stream_1 / stream_2 / new_intake / alumni / admins
+    group_key = cb.data.split(":")[-1]  # теперь корректно: cohort_1 / cohort_2 / new_intake / alumni / admins
     await _show_group_page(cb, group_key=group_key, page=1)
     await cb.answer()
 
@@ -91,7 +91,7 @@ async def admin_users_pick_group(cb: CallbackQuery):
 async def admin_users_page(cb: CallbackQuery):
     # формат: users:page:<group_key>:<page>
     parts = cb.data.split(":")
-    group_key = parts[2] if len(parts) >= 4 else "stream_1"
+    group_key = parts[2] if len(parts) >= 4 else "cohort_1"
     try:
         page = int(parts[3])
     except Exception:
