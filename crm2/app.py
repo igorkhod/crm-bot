@@ -95,7 +95,7 @@ async def main() -> None:
     dp.include_router(auth.router)
 
     # 2) Админ: панель и СРАЗУ DB Doctor (чтобы перехватывал свои кнопки первым)
-    dp.include_router(admin_panel_router)
+    dp.include_router(admin_panel_router.router)
     dp.include_router(admin_db_doctor_router.router)
 
     # 3) Остальные админ-подсекции (могут отсутствовать — подключаем мягко)
