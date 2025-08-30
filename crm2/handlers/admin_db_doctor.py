@@ -1,15 +1,15 @@
 # crm2/handlers/admin_db_doctor.py
 """
-Хендлеры раздела 🩺 DB Doctor.
-Смотрим состояние БД и чиним типовые проблемы.
+🩺 DB Doctor — мини-панель для проверки/ремонта БД.
+Используем общий коннектор БД, чтобы работать ровно с той же базой, что и весь бот.
 """
 
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
-import sqlite3
-from pathlib import Path
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from crm2.db.users import get_db_connection   # ВАЖНО: единая точка подключения
 from crm2.db import auto_migrate
+import sqlite3
 
 router = Router(name="admin_db_doctor")
 
@@ -19,13 +19,8 @@ BTN_FIX = "🛠 Исправить sessions"
 BTN_INDEXES = "📂 Индексы"
 BTN_BACK = "↩️ Главное меню"
 
-DB_PATH = Path("crm.db")   # поправь путь, если у тебя другой
 
-
-# ---------- Меню DB Doctor ----------
 async def show_menu(message: Message):
-    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-
     kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=BTN_STRUCT)],
@@ -33,30 +28,35 @@ async def show_menu(message: Message):
             [KeyboardButton(text=BTN_INDEXES)],
             [KeyboardButton(text=BTN_BACK)],
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
     await message.answer("🩺 DB Doctor — выберите действие:", reply_markup=kb)
 
 
 # ---------- 📊 Структура БД ----------
-# Три декоратора на одну функцию: 2 по тексту, 1 по команде
 @router.message(F.text.startswith("📊"))
 @router.message(F.text.contains("труктур"))
 @router.message(Command("db_sessions_info"))
 async def action_sessions_info(message: Message):
     try:
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute("PRAGMA table_info(sessions);")
-        cols = cur.fetchall()
-        cur.execute("SELECT COUNT(*) FROM sessions;")
-        count = cur.fetchone()[0]
-        con.close()
+        with get_db_connection() as con:
+            con.row_factory = sqlite3.Row
+            cur = con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions';")
+            t = cur.fetchone()
+            if not t:
+                await message.answer("❌ Таблица <b>sessions</b> отсутствует.")
+                return
 
-        lines = [ "📊 Таблица sessions:" ]
+            cur = con.execute("PRAGMA table_info(sessions);")
+            cols = cur.fetchall()
+            cur = con.execute("SELECT COUNT(*) AS c FROM sessions;")
+            count = cur.fetchone()["c"]
+
+        lines = ["📊 Таблица <b>sessions</b>:"]
         for col in cols:
-            lines.append(f"- {col[1]} ({col[2]})")
-        lines.append(f"\nВсего записей: {count}")
+            # PRAGMA table_info: (cid, name, type, notnull, dflt_value, pk)
+            lines.append(f"- {col['name']} ({col['type']})")
+        lines.append(f"\nВсего записей: <b>{count}</b>")
         await message.answer("\n".join(lines))
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
@@ -69,10 +69,10 @@ async def action_sessions_info(message: Message):
 @router.message(Command("db_fix_cohort"))
 async def action_fix_sessions(message: Message):
     try:
-        con = sqlite3.connect(DB_PATH)
-        auto_migrate.ensure_topics_and_session_days(con)
-        con.close()
-        await message.answer("✅ Готово: cohort_id добавлен/обновлён, данные перенесены, индекс создан.")
+        with get_db_connection() as con:
+            auto_migrate.ensure_topics_and_session_days(con)
+            con.commit()
+        await message.answer("✅ Готово: <b>cohort_id</b> добавлен/обновлён, данные перенесены, индекс создан.")
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
 
@@ -83,19 +83,24 @@ async def action_fix_sessions(message: Message):
 @router.message(Command("db_indexes"))
 async def action_indexes(message: Message):
     try:
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute("PRAGMA index_list(sessions);")
-        idx = cur.fetchall()
-        con.close()
+        with get_db_connection() as con:
+            con.row_factory = sqlite3.Row
+            cur = con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions';")
+            t = cur.fetchone()
+            if not t:
+                await message.answer("❌ Таблица <b>sessions</b> отсутствует.")
+                return
+
+            cur = con.execute("PRAGMA index_list('sessions');")
+            idx = cur.fetchall()
 
         if not idx:
             await message.answer("❌ Индексы отсутствуют.")
             return
 
-        lines = ["📂 Индексы таблицы sessions:"]
+        lines = ["📂 Индексы таблицы <b>sessions</b>:"]
         for row in idx:
-            # row: (seq, name, unique, origin, partial)
+            # (seq, name, unique, origin, partial) — обращаемся по индексам
             lines.append(f"- {row[1]} (unique={row[2]})")
         await message.answer("\n".join(lines))
     except Exception as e:
@@ -108,6 +113,6 @@ async def back_to_main(message: Message):
     from crm2.keyboards import role_kb
     from crm2.db.users import get_user_by_tg
 
-    user = await get_user_by_tg(message.from_user.id)
+    user = get_user_by_tg(message.from_user.id)
     role = (user or {}).get("role", "user")
     await message.answer("Главное меню:", reply_markup=role_kb(role))
