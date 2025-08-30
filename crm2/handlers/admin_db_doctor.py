@@ -1,32 +1,28 @@
 # crm2/handlers/admin_db_doctor.py
 """
-Хендлеры раздела 🩺 DB Doctor
-Позволяют администратору смотреть состояние базы и чинить ошибки.
+Хендлеры раздела 🩺 DB Doctor.
+Смотрим состояние БД и чиним типовые проблемы.
 """
 
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
-from crm2.db import auto_migrate
 import sqlite3
 from pathlib import Path
+from crm2.db import auto_migrate
 
 router = Router(name="admin_db_doctor")
 
-# --- Кнопки ---
+# Тексты кнопок
 BTN_STRUCT = "📊 Структура БД"
 BTN_FIX = "🛠 Исправить sessions"
 BTN_INDEXES = "📂 Индексы"
 BTN_BACK = "↩️ Главное меню"
 
-DB_PATH = Path("crm.db")  # если у тебя путь другой, поправь
+DB_PATH = Path("crm.db")   # поправь путь, если у тебя другой
 
 
-def _txt(t: str) -> str:
-    return (t or "").strip().lower()
-
-
-# --- Главное меню DB Doctor ---
+# ---------- Меню DB Doctor ----------
 async def show_menu(message: Message):
     from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
@@ -42,10 +38,11 @@ async def show_menu(message: Message):
     await message.answer("🩺 DB Doctor — выберите действие:", reply_markup=kb)
 
 
-# --- Структура БД ---
-@router.message(
-    F.text.startswith("📊") | F.text.contains("труктур") | Command("db_sessions_info")
-)
+# ---------- 📊 Структура БД ----------
+# Три декоратора на одну функцию: 2 по тексту, 1 по команде
+@router.message(F.text.startswith("📊"))
+@router.message(F.text.contains("труктур"))
+@router.message(Command("db_sessions_info"))
 async def action_sessions_info(message: Message):
     try:
         con = sqlite3.connect(DB_PATH)
@@ -56,19 +53,20 @@ async def action_sessions_info(message: Message):
         count = cur.fetchone()[0]
         con.close()
 
-        text = "📊 Таблица sessions:\n"
+        lines = [ "📊 Таблица sessions:" ]
         for col in cols:
-            text += f"- {col[1]} ({col[2]})\n"
-        text += f"\nВсего записей: {count}"
-        await message.answer(text)
+            lines.append(f"- {col[1]} ({col[2]})")
+        lines.append(f"\nВсего записей: {count}")
+        await message.answer("\n".join(lines))
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
 
 
-# --- Исправление sessions ---
-@router.message(
-    F.text.startswith("🛠") | F.text.contains("sessions") | Command("db_fix_cohort")
-)
+# ---------- 🛠 Исправить sessions ----------
+@router.message(F.text.startswith("🛠"))
+@router.message(F.text.contains("править"))
+@router.message(F.text.contains("sessions"))
+@router.message(Command("db_fix_cohort"))
 async def action_fix_sessions(message: Message):
     try:
         con = sqlite3.connect(DB_PATH)
@@ -79,10 +77,10 @@ async def action_fix_sessions(message: Message):
         await message.answer(f"Ошибка: {e}")
 
 
-# --- Индексы ---
-@router.message(
-    F.text.startswith("📂") | F.text.contains("ндекс") | Command("db_indexes")
-)
+# ---------- 📂 Индексы ----------
+@router.message(F.text.startswith("📂"))
+@router.message(F.text.contains("ндекс"))
+@router.message(Command("db_indexes"))
 async def action_indexes(message: Message):
     try:
         con = sqlite3.connect(DB_PATH)
@@ -95,20 +93,21 @@ async def action_indexes(message: Message):
             await message.answer("❌ Индексы отсутствуют.")
             return
 
-        text = "📂 Индексы таблицы sessions:\n"
+        lines = ["📂 Индексы таблицы sessions:"]
         for row in idx:
-            text += f"- {row[1]} (unique={row[2]})\n"
-        await message.answer(text)
+            # row: (seq, name, unique, origin, partial)
+            lines.append(f"- {row[1]} (unique={row[2]})")
+        await message.answer("\n".join(lines))
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
 
 
-# --- Возврат в главное меню ---
+# ---------- ↩️ Главное меню ----------
 @router.message(F.text == BTN_BACK)
 async def back_to_main(message: Message):
     from crm2.keyboards import role_kb
     from crm2.db.users import get_user_by_tg
 
     user = await get_user_by_tg(message.from_user.id)
-    role = user["role"] if user else "user"
+    role = (user or {}).get("role", "user")
     await message.answer("Главное меню:", reply_markup=role_kb(role))
