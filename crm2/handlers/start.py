@@ -10,7 +10,6 @@ from crm2.handlers.consent import has_consent, consent_kb, CONSENT_TEXT
 import sqlite3
 from crm2.db.sqlite import DB_PATH
 from crm2.keyboards import guest_start_kb, role_kb
-from crm2.handlers_schedule import show_info_menu
 from crm2.keyboards import guest_start_kb
 
 
@@ -51,5 +50,3 @@ async def cmd_start(message: Message, state: FSMContext):
 
     # --- зарегистрированных кидаем сразу в главное меню и открываем подменю расписания ---
     await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
-    # сразу показываем подменю расписания, чтобы было «с расписанием»
-    await show_info_menu(message)
