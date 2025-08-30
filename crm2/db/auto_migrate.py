@@ -13,14 +13,17 @@ def _exec(con: sqlite3.Connection, sql: str) -> None:
     con.execute(sql)
 
 
+def _has_column(con: sqlite3.Connection, table: str, col: str) -> bool:
+    cur = con.execute(f"PRAGMA table_info({table});")
+    return any(row[1] == col for row in cur.fetchall())
+
+
 # -------------------------------
 #  БАЗОВЫЕ ТАБЛИЦЫ РАСПИСАНИЯ
 # -------------------------------
+
 def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
-    """
-    Создаёт таблицы topics и sessions (унифицированная таблица занятий).
-    Ранее могла называться session_days — оставляем совместимость индексами.
-    """
+    # topics
     _exec(
         con,
         """
@@ -33,27 +36,45 @@ def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
         """,
     )
 
-    # Единая таблица занятий (используется в crm2/db/sessions.py как FROM sessions)
+    # sessions (целевая схема уже с cohort_id)
     _exec(
         con,
         """
         CREATE TABLE IF NOT EXISTS sessions (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            start_date  TEXT NOT NULL,          -- YYYY-MM-DD
-            end_date    TEXT,                   -- YYYY-MM-DD (может совпадать со start_date)
-            topic_code  TEXT,                   -- ссылка на topics.code
+            start_date  TEXT NOT NULL,
+            end_date    TEXT,
+            topic_code  TEXT,
             title       TEXT,
             annotation  TEXT,
-            cohort_id   INTEGER                 -- номер потока (1/2/…)
+            cohort_id   INTEGER
         );
         """,
     )
 
-    _exec(con, "CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_date);")
-    _exec(
-        con,
-        "CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start ON sessions(cohort_id, start_date);",
-    )
+    # ── авто-миграция старой базы: добавить cohort_id и перенести из stream_id ──
+    try:
+        if not _has_column(con, "sessions", "cohort_id"):
+            con.execute("ALTER TABLE sessions ADD COLUMN cohort_id INTEGER;")
+        if _has_column(con, "sessions", "stream_id"):
+            con.execute(
+                """
+                UPDATE sessions
+                SET cohort_id = stream_id
+                WHERE cohort_id IS NULL AND stream_id IS NOT NULL;
+                """
+            )
+    except sqlite3.OperationalError:
+        # на всякий случай не роняем старт
+        pass
+
+    # индексы (создаём нужные, старые удаляем — и тоже не роняем)
+    try:
+        con.execute("CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_date);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start ON sessions(cohort_id, start_date);")
+        con.execute("DROP INDEX IF EXISTS idx_sessions_stream_start;")
+    except sqlite3.OperationalError:
+        pass
 
 
 # ---------------------------------------
