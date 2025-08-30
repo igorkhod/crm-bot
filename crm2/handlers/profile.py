@@ -8,7 +8,7 @@ import sqlite3
 from crm2.db.sqlite import DB_PATH
 from crm2.keyboards.profile import profile_menu_kb
 from crm2.keyboards import role_kb, guest_start_kb
-from crm2.db.sessions import get_upcoming_sessions, get_user_stream_title_by_tg
+from crm2.db.sessions import get_upcoming_sessions, get_user_cohort_title_by_tg
 from crm2.db.attendance import get_last_attendance, get_summary
 
 router = Router(name="profile")
@@ -37,7 +37,7 @@ async def show_profile(message: Message):
     uid = row["id"]
     role = row["role"] or "user"
     fio = row["full_name"] or message.from_user.full_name or (row["nickname"] or "")
-    stream_id, stream_title = get_user_stream_title_by_tg(tg_id)
+    cohort_id, cohort_title = get_user_cohort_title_by_tg(tg_id)
 
     # ближайшее занятие для конкретного пользователя (с его потоком, если он есть)
     nearest = None
@@ -61,7 +61,7 @@ async def show_profile(message: Message):
         "👤 *Личный кабинет*\n\n"
         f"*ФИО:* {fio}\n"
         f"*Роль:* {role}\n"
-        f"*Поток:* {stream_title or 'Без потока'}\n"
+        f"*Поток:* {cohort_title or 'Без потока'}\n"
         f"*Ближайшее занятие:* {nearest or '—'}\n\n"
         f"*Посещаемость:*\n"
         f"Был: {present} · Пропустил: {absent} · Опоздал: {late}\n"

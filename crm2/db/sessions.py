@@ -42,7 +42,7 @@ def _safe_title_from_table(con: sqlite3.Connection, table: str, id_value: int) -
     return (row["title"] if row and "title" in row.keys() else None)
 
 
-def get_user_stream_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str]]:
+def get_user_cohort_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str]]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
 
@@ -460,7 +460,7 @@ def get_nearest_session_text() -> str | None:
         return None
 
 
-def get_recent_past_sessions_by_stream(stream_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+def get_recent_past_sessions_by_cohort_(cohort_id: int, limit: int = 5) -> List[Dict[str, Any]]:
     """
     Последние прошедшие занятия потока (по start_date <= today), новее – выше.
     """
@@ -468,13 +468,13 @@ def get_recent_past_sessions_by_stream(stream_id: int, limit: int = 5) -> List[D
         con.row_factory = sqlite3.Row
         rows = con.execute(
             """
-            SELECT id, start_date, end_date, topic_code, title, annotation, stream_id
+            SELECT id, start_date, end_date, topic_code, title, annotation, cohort_id
             FROM sessions
             WHERE stream_id = ? AND DATE (start_date) <= DATE ('now')
             ORDER BY DATE (start_date) DESC
                 LIMIT ?
             """,
-            (stream_id, limit),
+            (cohort_id, limit),
         ).fetchall()
         return [dict(r) for r in rows]
 

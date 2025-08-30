@@ -4,7 +4,7 @@ import sqlite3
 from typing import List, Tuple
 from .core import get_db_connection
 
-def list_users_by_stream(stream_id: int) -> List[Tuple[int, str]]:
+def list_users_by_cohort_id(cohort_id: int) -> List[Tuple[int, str]]:
     """
     Возвращает [(user_id, display_name)] для указанного потока.
     Ожидается, что в таблице users есть поле stream_id (INTEGER).
@@ -14,6 +14,6 @@ def list_users_by_stream(stream_id: int) -> List[Tuple[int, str]]:
         rows = con.execute(
             "SELECT id, COALESCE(full_name, nickname, '') AS name "
             "FROM users WHERE stream_id=? ORDER BY name COLLATE NOCASE",
-            (stream_id,)
+            (cohort_id,)
         ).fetchall()
         return [(r["id"], r["name"] or f"#{r['id']}") for r in rows]
