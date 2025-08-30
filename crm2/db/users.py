@@ -28,5 +28,5 @@ def list_users_by_cohort(cohort_id: int) -> List[Tuple[int, str]]:
         return [(r["id"], r["name"]) for r in rows]
 
 # На всякий случай сохраняем обратную совместимость:
-def list_users_by_stream(stream_id: int):
-    return list_users_by_cohort(stream_id)
+def list_users_by_cohort(cohort_id: int):
+    return list_users_by_cohort(cohort_id)

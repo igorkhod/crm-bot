@@ -43,7 +43,6 @@ def _safe_title_from_table(con: sqlite3.Connection, table: str, id_value: int) -
 
 
 def get_user_cohort_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str]]:
-    return None, "⏸️ Временно недоступно"
     """
     Возвращает (cohort_id, заголовок потока) по telegram_id пользователя.
     Используем users.cohort_id. Если таблица cohorts существует — берём title оттуда,
@@ -420,7 +419,6 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
 
 
 def get_upcoming_sessions_by_cohort(cohort_id: int, limit: int = 5) -> list[dict]:
-    return []  # ⏸️ Временно отключено до исправления базы
 
     """
     Вернёт список ближайших занятий только для указанного потока.
@@ -471,7 +469,6 @@ def get_nearest_session_text() -> str | None:
 
 
 def get_recent_past_sessions_by_cohort(cohort_id: int, limit: int = 5) -> List[Dict[str, Any]]:
-    return []  # ⏸️ Временно отключено до исправления базы
     """
     Последние прошедшие занятия потока (по start_date <= today), новее – выше.
     """

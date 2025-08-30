@@ -52,16 +52,16 @@ def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
         """,
     )
 
-    # ── авто-миграция старой базы: добавить cohort_id и перенести из stream_id ──
+    # ── авто-миграция старой базы: добавить cohort_id и перенести из cohort_id ──
     try:
         if not _has_column(con, "sessions", "cohort_id"):
             con.execute("ALTER TABLE sessions ADD COLUMN cohort_id INTEGER;")
-        if _has_column(con, "sessions", "stream_id"):
+        if _has_column(con, "sessions", "cohort_id"):
             con.execute(
                 """
                 UPDATE sessions
-                SET cohort_id = stream_id
-                WHERE cohort_id IS NULL AND stream_id IS NOT NULL;
+                SET cohort_id = cohort_id
+                WHERE cohort_id IS NULL AND cohort_id IS NOT NULL;
                 """
             )
     except sqlite3.OperationalError:
@@ -72,7 +72,7 @@ def ensure_topics_and_session_days(con: sqlite3.Connection) -> None:
     try:
         con.execute("CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start_date);")
         con.execute("CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start ON sessions(cohort_id, start_date);")
-        con.execute("DROP INDEX IF EXISTS idx_sessions_stream_start;")
+        con.execute("DROP INDEX IF EXISTS idx_sessions_cohort_start;")
     except sqlite3.OperationalError:
         pass
 
