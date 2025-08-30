@@ -1,132 +1,114 @@
 # crm2/handlers/admin_db_doctor.py
-from __future__ import annotations
+"""
+Хендлеры раздела 🩺 DB Doctor
+Позволяют администратору смотреть состояние базы и чинить ошибки.
+"""
 
-import sqlite3
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-
-from crm2.db.sqlite import DB_PATH
+from aiogram.types import Message
+from crm2.db import auto_migrate
+import sqlite3
+from pathlib import Path
 
 router = Router(name="admin_db_doctor")
 
+# --- Кнопки ---
+BTN_STRUCT = "📊 Структура БД"
+BTN_FIX = "🛠 Исправить sessions"
+BTN_INDEXES = "📂 Индексы"
+BTN_BACK = "↩️ Главное меню"
 
-# ---------- утилиты ------------------------------------------------------------
-def _txt(s: str) -> str:
-    """Нормализуем текст кнопки/сообщения (убираем лишние пробелы, приводим к нижнему регистру)."""
-    return " ".join((s or "").strip().split()).lower()
-
-BTN_MENU     = "🩺 db doctor"
-BTN_STRUCT   = "📊 структура бд"
-BTN_FIX      = "🛠 исправить sessions"
-BTN_INDEXES  = "📂 индексы"
-BTN_BACK     = "↩️ главное меню"
+DB_PATH = Path("crm.db")  # если у тебя путь другой, поправь
 
 
-# ---------- меню ---------------------------------------------------------------
-async def show_menu(message: Message) -> None:
+def _txt(t: str) -> str:
+    return (t or "").strip().lower()
+
+
+# --- Главное меню DB Doctor ---
+async def show_menu(message: Message):
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+
     kb = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📊 Структура БД"), KeyboardButton(text="🛠 Исправить sessions")],
-            [KeyboardButton(text="📂 Индексы"),      KeyboardButton(text="↩️ Главное меню")],
+            [KeyboardButton(text=BTN_STRUCT)],
+            [KeyboardButton(text=BTN_FIX)],
+            [KeyboardButton(text=BTN_INDEXES)],
+            [KeyboardButton(text=BTN_BACK)],
         ],
-        resize_keyboard=True,
+        resize_keyboard=True
     )
-    await message.answer("🩺 DB Doctor — выбор действия:", reply_markup=kb)
+    await message.answer("🩺 DB Doctor — выберите действие:", reply_markup=kb)
 
 
-@router.message(F.text.func(lambda t: _txt(t) == BTN_MENU))
-async def db_doctor_menu(message: Message):
-    await show_menu(message)
-
-
-# ---------- команды-дублёры ---------------------------------------------------
-@router.message(Command("db_sessions_info"))
-async def cmd_sessions_info(message: Message):
-    await action_sessions_info(message)
-
-@router.message(Command("db_fix_cohort"))
-async def cmd_fix_cohort(message: Message):
-    await action_fix_sessions(message)
-
-@router.message(Command("db_indexes"))
-async def cmd_indexes(message: Message):
-    await action_indexes(message)
-
-
-# ---------- действия (по кнопкам/тексту) --------------------------------------
-@router.message(F.text.func(lambda t: _txt(t) == BTN_STRUCT) | F.text.func(lambda t: _txt(t) == "структура бд"))
+# --- Структура БД ---
+@router.message(
+    F.text.startswith("📊") | F.text.contains("труктур") | Command("db_sessions_info")
+)
 async def action_sessions_info(message: Message):
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        cols = con.execute("PRAGMA table_info(sessions);").fetchall()
-        cnt  = con.execute("SELECT COUNT(*) AS c FROM sessions;").fetchone()["c"]
-
-        def safe_count(col: str):
-            try:
-                return con.execute(f"SELECT COUNT(DISTINCT {col}) AS n FROM sessions;").fetchone()["n"]
-            except Exception:
-                return "—"
-
-        has_stream = any(c["name"] == "stream_id" for c in cols)
-        has_cohort = any(c["name"] == "cohort_id" for c in cols)
-
-    lines = [
-        "📊 *sessions* — структура:",
-        *(f"• {c['cid']}: {c['name']}  {c['type']}" for c in cols),
-        "",
-        f"Всего строк: *{cnt}*",
-        f"Есть stream_id: *{has_stream}*  |  Есть cohort_id: *{has_cohort}*",
-        f"Уникальных stream_id: *{safe_count('stream_id')}*  |  Уникальных cohort_id: *{safe_count('cohort_id')}*",
-        "",
-        "Подсказка: при необходимости нажмите «🛠 Исправить sessions».",
-    ]
-    await message.answer("\n".join(lines), parse_mode="Markdown")
-
-
-@router.message(F.text.func(lambda t: _txt(t) == BTN_FIX) | F.text.func(lambda t: _txt(t) == "исправить sessions"))
-async def action_fix_sessions(message: Message):
-    with sqlite3.connect(DB_PATH) as con:
-        cur = con.cursor()
-        names = {c[1] for c in cur.execute("PRAGMA table_info(sessions);").fetchall()}
-
-        if "cohort_id" not in names:
-            cur.execute("ALTER TABLE sessions ADD COLUMN cohort_id INTEGER;")
-
-        if "stream_id" in names:
-            cur.execute("""
-                UPDATE sessions
-                SET cohort_id = stream_id
-                WHERE cohort_id IS NULL AND stream_id IS NOT NULL;
-            """)
-
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start
-            ON sessions(cohort_id, start_date);
-        """)
-        cur.execute("DROP INDEX IF EXISTS idx_sessions_stream_start;")
-        con.commit()
-
-    await message.answer("✅ Готово: cohort_id добавлен/обновлён, данные перенесены, индекс создан.")
-
-
-@router.message(F.text.func(lambda t: _txt(t) == BTN_INDEXES) | F.text.func(lambda t: _txt(t) == "индексы"))
-async def action_indexes(message: Message):
-    with sqlite3.connect(DB_PATH) as con:
-        rows = con.execute("PRAGMA index_list(sessions);").fetchall()
-    if not rows:
-        await message.answer("Нет индексов в таблице sessions.")
-    else:
-        text = "📂 *Индексы sessions*:\n" + "\n".join(str(r) for r in rows)
-        await message.answer(text, parse_mode="Markdown")
-
-
-@router.message(F.text.func(lambda t: _txt(t) == BTN_BACK) | F.text.func(lambda t: _txt(t) == "главное меню"))
-async def action_back_to_main(message: Message):
-    # переиспользуем уже готовый рендер главного меню
-    from crm2.handlers import info as info_router
-    # в info.py (или соответствующем модуле) должен быть хэндлер back_to_main(message)
     try:
-        await info_router.back_to_main(message)
-    except Exception:
-        await message.answer("Главное меню:", reply_markup=None)
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("PRAGMA table_info(sessions);")
+        cols = cur.fetchall()
+        cur.execute("SELECT COUNT(*) FROM sessions;")
+        count = cur.fetchone()[0]
+        con.close()
+
+        text = "📊 Таблица sessions:\n"
+        for col in cols:
+            text += f"- {col[1]} ({col[2]})\n"
+        text += f"\nВсего записей: {count}"
+        await message.answer(text)
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+
+# --- Исправление sessions ---
+@router.message(
+    F.text.startswith("🛠") | F.text.contains("sessions") | Command("db_fix_cohort")
+)
+async def action_fix_sessions(message: Message):
+    try:
+        con = sqlite3.connect(DB_PATH)
+        auto_migrate.ensure_topics_and_session_days(con)
+        con.close()
+        await message.answer("✅ Готово: cohort_id добавлен/обновлён, данные перенесены, индекс создан.")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+
+# --- Индексы ---
+@router.message(
+    F.text.startswith("📂") | F.text.contains("ндекс") | Command("db_indexes")
+)
+async def action_indexes(message: Message):
+    try:
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("PRAGMA index_list(sessions);")
+        idx = cur.fetchall()
+        con.close()
+
+        if not idx:
+            await message.answer("❌ Индексы отсутствуют.")
+            return
+
+        text = "📂 Индексы таблицы sessions:\n"
+        for row in idx:
+            text += f"- {row[1]} (unique={row[2]})\n"
+        await message.answer(text)
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+
+# --- Возврат в главное меню ---
+@router.message(F.text == BTN_BACK)
+async def back_to_main(message: Message):
+    from crm2.keyboards import role_kb
+    from crm2.db.users import get_user_by_tg
+
+    user = await get_user_by_tg(message.from_user.id)
+    role = user["role"] if user else "user"
+    await message.answer("Главное меню:", reply_markup=role_kb(role))
