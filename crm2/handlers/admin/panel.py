@@ -95,11 +95,4 @@ async def admin_dbdoctor_entry_text(message: Message):
     from crm2.handlers import admin_db_doctor
     await admin_db_doctor.show_menu(message)
 
-# --- Переход в раздел "DB Doctor" ---------------------------------------------
-@router.callback_query(F.data == "adm:dbdoctor")
-async def admin_dbdoctor_entry(cb: CallbackQuery):
-    from crm2.handlers import admin_db_doctor
-    # вызываем готовый рендер из admin_db_doctor.py
-    await admin_db_doctor.show_menu(cb.message)
-    await cb.answer()
 
