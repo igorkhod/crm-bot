@@ -33,8 +33,9 @@ from crm2.handlers.admin.schedule import router as admin_schedule_router
 from crm2.handlers.admin.users import router as admin_users_router
 # Общие хэндлеры расписания (клавиатура ближайших занятий)
 from crm2.handlers_schedule import router as schedule_router, send_schedule_keyboard, show_info_menu
-from crm2.handlers import profile as profile_router
 from crm2.handlers import attendance as attendance_router
+from crm2.handlers import profile as profile_router
+
 
 
 # === Утилиты ===============================================================
@@ -101,6 +102,7 @@ dp.include_router(help_router.router)
 dp.include_router(about_router.router)
 dp.include_router(profile_router.router)
 dp.include_router(attendance_router.router)
+
 
 
 # === Хэндлеры верхнего уровня (кнопки/команды) =============================

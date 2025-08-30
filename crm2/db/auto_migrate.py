@@ -126,6 +126,24 @@ def ensure_user_flags_and_attendance(con: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id, session_id);",
     )
 
+    _exec(
+        con,
+        """
+        CREATE TABLE IF NOT EXISTS payments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            session_id  INTEGER NOT NULL,
+            paid        INTEGER NOT NULL CHECK (paid IN (0,1)),
+            noted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+            noted_by    INTEGER
+        );
+        """,
+    )
+    _exec(
+        con,
+        "CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, session_id);",
+    )
+
 
 # ---------------------------------------
 #  ПУБЛИЧНЫЕ ТОЧКИ ВХОДА
