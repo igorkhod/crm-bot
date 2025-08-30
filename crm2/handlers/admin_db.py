@@ -27,7 +27,7 @@ async def db_sessions_info(message: Message):
             except Exception:
                 return "—"
 
-        ds = safe_count_distinct("stream_id")
+        ds = safe_count_distinct("cohort_id")
         dc = safe_count_distinct("cohort_id")
 
     lines = [
@@ -35,8 +35,8 @@ async def db_sessions_info(message: Message):
         *(f"• {c['cid']}: {c['name']}  {c['type']}" for c in cols),
         "",
         f"Всего строк: *{cnt}*",
-        f"Есть stream_id: *{any(c['name']=='stream_id' for c in cols)}*  |  Есть cohort_id: *{any(c['name']=='cohort_id' for c in cols)}*",
-        f"Уникальных stream_id: *{ds}*  |  Уникальных cohort_id: *{dc}*",
+        f"Есть cohort_id: *{any(c['name']=='cohort_id' for c in cols)}*  |  Есть cohort_id: *{any(c['name']=='cohort_id' for c in cols)}*",
+        f"Уникальных cohort_id: *{ds}*  |  Уникальных cohort_id: *{dc}*",
         "",
         "Подсказка: при необходимости выполните /db_fix_cohort",
     ]
@@ -55,12 +55,12 @@ async def db_fix_cohort(message: Message):
         if "cohort_id" not in names:
             cur.execute("ALTER TABLE sessions ADD COLUMN cohort_id INTEGER;")
 
-        # 2) перенести данные из stream_id (если есть)
-        if "stream_id" in names:
+        # 2) перенести данные из cohort_id (если есть)
+        if "cohort_id" in names:
             cur.execute("""
                 UPDATE sessions
-                SET cohort_id = stream_id
-                WHERE cohort_id IS NULL AND stream_id IS NOT NULL;
+                SET cohort_id = cohort_id
+                WHERE cohort_id IS NULL AND cohort_id IS NOT NULL;
             """)
 
         # 3) индекс по новой колонке
@@ -70,7 +70,7 @@ async def db_fix_cohort(message: Message):
         """)
 
         # 4) убрать старый индекс (если был)
-        cur.execute("DROP INDEX IF EXISTS idx_sessions_stream_start;")
+        cur.execute("DROP INDEX IF EXISTS idx_sessions_cohort_start;")
 
         con.commit()
 

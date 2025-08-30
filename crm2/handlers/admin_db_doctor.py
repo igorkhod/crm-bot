@@ -38,15 +38,15 @@ async def fix_sessions(message: Message):
         cols = {c[1] for c in cur.execute("PRAGMA table_info(sessions);")}
         if "cohort_id" not in cols:
             cur.execute("ALTER TABLE sessions ADD COLUMN cohort_id INTEGER;")
-        if "stream_id" in cols:
+        if "cohort_id" in cols:
             cur.execute(
-                "UPDATE sessions SET cohort_id = stream_id WHERE cohort_id IS NULL;"
+                "UPDATE sessions SET cohort_id = cohort_id WHERE cohort_id IS NULL;"
             )
         # индексы
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_cohort_start ON sessions(cohort_id, start_date);"
         )
-        cur.execute("DROP INDEX IF EXISTS idx_sessions_stream_start;")
+        cur.execute("DROP INDEX IF EXISTS idx_sessions_cohort_start;")
         con.commit()
     await message.answer("✅ Таблица *sessions* исправлена.", parse_mode="Markdown")
 

@@ -15,6 +15,7 @@ if AdminOnly:
     router.callback_query.middleware(AdminOnly())
 
 # --- Клавиатура админ-панели ---------------------------------------------------
+
 def _admin_menu_kb() -> InlineKeyboardMarkup:
     rows = [
         [
@@ -25,8 +26,12 @@ def _admin_menu_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📣 Рассылка",     callback_data="adm:broadcast"),
             InlineKeyboardButton(text="🧾 Логи",         callback_data="adm:logs"),
         ],
+        [
+            InlineKeyboardButton(text="🩺 DB Doctor",    callback_data="adm:dbdoctor"),  # 👈 новая кнопка
+        ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
 
 # алиас на случай импортов вида admin_panel_kb()
 def admin_panel_kb() -> InlineKeyboardMarkup:
@@ -74,3 +79,12 @@ async def admin_broadcast_entry(cb: CallbackQuery):
 async def admin_logs_entry(cb: CallbackQuery):
     await cb.message.edit_text("🧾 Логи → сводка по рассылкам и служебные записи.")
     await cb.answer()
+
+# --- Переход в раздел "DB Doctor" ---------------------------------------------
+@router.callback_query(F.data == "adm:dbdoctor")
+async def admin_dbdoctor_entry(cb: CallbackQuery):
+    from crm2.handlers import admin_db_doctor
+    # вызываем готовый рендер из admin_db_doctor.py
+    await admin_db_doctor.show_menu(cb.message)
+    await cb.answer()
+
