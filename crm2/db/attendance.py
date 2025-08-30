@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Tuple, List
 from .core import get_db_connection
+from crm2.db.sessions import get_upcoming_sessions_by_cohort, get_recent_past_sessions_by_cohort
+from crm2.db.users import list_users_by_cohort
 
 def get_last_attendance(user_id: int, limit: int = 3) -> List[tuple]:
     """

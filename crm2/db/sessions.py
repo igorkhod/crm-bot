@@ -43,45 +43,52 @@ def _safe_title_from_table(con: sqlite3.Connection, table: str, id_value: int) -
 
 
 def get_user_cohort_title_by_tg(tg_id: int) -> Tuple[Optional[int], Optional[str]]:
+    """
+    Возвращает (cohort_id, заголовок потока) по telegram_id пользователя.
+    Используем users.cohort_id. Если таблица cohorts существует — берём title оттуда,
+    иначе возвращаем дефолтную подпись по словарю.
+    """
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
-
         u = con.execute(
-            "SELECT id, cohort_id FROM users WHERE telegram_id=? LIMIT 1",
+            "SELECT cohort_id FROM users WHERE telegram_id=? LIMIT 1",
             (tg_id,),
         ).fetchone()
-        if not u:
-            return None, None
-        uid = u["id"]
 
-        p = con.execute(
-            "SELECT stream_id FROM participants WHERE user_id=? ORDER BY id DESC LIMIT 1",
-            (uid,),
-        ).fetchone()
+    if not u or u["cohort_id"] in (None, ""):
+        return None, None
 
-        stream_id = p["stream_id"] if (p and p["stream_id"] not in (None, "")) else u["cohort_id"]
-        if stream_id in (None, ""):
-            return None, None
+    cohort_id = int(u["cohort_id"])
 
-        title = _safe_title_from_table(con, "streams", int(stream_id)) or \
-                _safe_title_from_table(con, "cohorts", int(stream_id))
+    # если есть таблица cohorts — тянем подпись оттуда
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        title = _safe_title_from_table(con, "cohorts", cohort_id)
 
-        return int(stream_id), title
+    if not title:
+        titles = {
+            1: "1 поток · набор 09.2023",
+            2: "2 поток · набор 04.2025",
+        }
+        title = titles.get(cohort_id, f"Поток {cohort_id}")
+
+    return cohort_id, title
 
 
-def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
+
+def _select_from_session_days(con: sqlite3.Connection, *, cohort_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
     cols = _cols(con, "session_days")
     id_col = "id"
     day_col = _pick(cols, ["day", "date", "day_date", "session_day"]) or "date"
-    stream_col = _pick(cols, ["stream_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
     topic_code_col = _pick(cols, ["topic_code", "code"])
     topic_id_col = _pick(cols, ["topic_id"])
 
     where = f"date({day_col}) >= date('now')"
     params: List[Any] = []
-    if stream_id is not None and stream_col is not None:
-        where += f" AND {stream_col}=?"
-        params.append(stream_id)
+    if cohort_id is not None and cohort_col is not None:
+        where += f" AND {cohort_col}=?"
+        params.append(cohort_id)
 
     select_cols = [f"{id_col} AS id", f"{day_col} AS day"]
     if topic_code_col:
@@ -93,10 +100,10 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
     else:
         select_cols.append("NULL AS topic_id")
 
-    if stream_col:
-        select_cols.append(f"{stream_col} AS stream_id")
+    if cohort_col:
+        select_cols.append(f"{cohort_col} AS cohort_id")
     else:
-        select_cols.append("NULL AS stream_id")
+        select_cols.append("NULL AS cohort_id")
 
     sql = f"SELECT {', '.join(select_cols)} FROM session_days WHERE {where} ORDER BY {day_col}"
     rows = [dict(r) for r in con.execute(sql, params).fetchall()]
@@ -141,7 +148,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
         items.append({
             "id": int(r["id"]),
             "day": d,
-            "stream_id": r.get("stream_id"),
+            "cohort_id": r.get("cohort_id"),
             "topic_code": code,
             "title": title,
             "annotation": ann,
@@ -162,7 +169,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
                 "topic_code": it["topic_code"],
                 "title": it["title"],
                 "annotation": it["annotation"],
-                "stream_id": it["stream_id"],
+                "cohort_id": it["cohort_id"],
             }
             continue
 
@@ -184,7 +191,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
                 "topic_code": it["topic_code"],
                 "title": it["title"],
                 "annotation": it["annotation"],
-                "stream_id": it["stream_id"],
+                "cohort_id": it["cohort_id"],
             }
 
     if cur is not None:
@@ -192,7 +199,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
 
     groups = groups[:limit]
 
-    # Оставляем stream_id, чтобы в UI можно было показывать поток
+    # Оставляем cohort_id, чтобы в UI можно было показывать поток
     cleaned = []
     for g in groups:
         cleaned.append({
@@ -202,12 +209,12 @@ def _select_from_session_days(con: sqlite3.Connection, *, stream_id: Optional[in
             "topic_code": g.get("topic_code"),
             "title": g.get("title"),
             "annotation": g.get("annotation"),
-            "stream_id": g.get("stream_id"),
+            "cohort_id": g.get("cohort_id"),
         })
     return cleaned
 
 
-def _select_from_sessions(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
+def _select_from_sessions(con: sqlite3.Connection, *, cohort_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
     cols = _cols(con, "sessions")
     id_col = "id"
     start_col = _pick(cols, ["start_date", "start", "date"])
@@ -215,16 +222,16 @@ def _select_from_sessions(con: sqlite3.Connection, *, stream_id: Optional[int], 
     topic_col = _pick(cols, ["topic_code", "code", "topic"])
     title_col = _pick(cols, ["title", "name"])
     ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
-    stream_col = _pick(cols, ["stream_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
 
     if start_col is None:
         raise RuntimeError("Table 'sessions' has no start_date/start/date column")
 
     where = f"date({start_col}) >= date('now')"
     params: List[Any] = []
-    if stream_id is not None and stream_col is not None:
-        where += f" AND {stream_col}=?"
-        params.append(stream_id)
+    if cohort_id is not None and cohort_col is not None:
+        where += f" AND {cohort_col}=?"
+        params.append(cohort_id)
 
     select_cols = [f"{id_col} AS id", f"{start_col} AS start_date"]
     select_cols.append(f"{end_col} AS end_date" if end_col else f"{start_col} AS end_date")
@@ -244,19 +251,19 @@ def _select_from_sessions(con: sqlite3.Connection, *, stream_id: Optional[int], 
     return [dict(r) for r in rows]
 
 
-def _select_from_events(con: sqlite3.Connection, *, stream_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
+def _select_from_events(con: sqlite3.Connection, *, cohort_id: Optional[int], limit: int) -> List[Dict[str, Any]]:
     cols = _cols(con, "events")
     id_col = "id"
     date_col = _pick(cols, ["date", "event_date", "start", "start_date"]) or "date"
     title_col = _pick(cols, ["title", "name"])
     ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
-    stream_col = _pick(cols, ["stream_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
 
     where = f"date({date_col}) >= date('now')"
     params: List[Any] = []
-    if stream_id is not None and stream_col is not None:
-        where += f" AND {stream_col}=?"
-        params.append(stream_id)
+    if cohort_id is not None and cohort_col is not None:
+        where += f" AND {cohort_col}=?"
+        params.append(cohort_id)
 
     select_cols = [f"{id_col} AS id",
                    f"{date_col} AS start_date",
@@ -280,7 +287,7 @@ def _select_from_events(con: sqlite3.Connection, *, stream_id: Optional[int], li
 def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> List[Dict[str, Any]]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
-        stream_id = None
+        cohort_id = None
         if tg_id is not None:
             row = con.execute(
                 """
@@ -290,27 +297,27 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> Lis
                     LIMIT 1
                     )
                    , p AS (
-                SELECT stream_id
+                SELECT cohort_id
                 FROM participants
                 WHERE user_id=(SELECT id FROM u LIMIT 1)
                 ORDER BY id DESC
                     LIMIT 1
                     )
-                SELECT COALESCE(p.stream_id, u.cohort_id) AS stream_id
+                SELECT COALESCE(p.cohort_id, u.cohort_id) AS cohort_id
                 FROM u
                          LEFT JOIN p ON 1 = 1
                 """,
                 (tg_id,),
             ).fetchone()
-            if row and row["stream_id"] not in (None, ""):
-                stream_id = int(row["stream_id"])
+            if row and row["cohort_id"] not in (None, ""):
+                cohort_id = int(row["cohort_id"])
 
         if _table_exists(con, "sessions"):
-            return _select_from_sessions(con, stream_id=stream_id, limit=limit)
+            return _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
         if _table_exists(con, "events"):
-            return _select_from_events(con, stream_id=stream_id, limit=limit)
+            return _select_from_events(con, cohort_id=cohort_id, limit=limit)
         if _table_exists(con, "session_days"):
-            return _select_from_session_days(con, stream_id=stream_id, limit=limit)
+            return _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
         return []
 
 
@@ -411,19 +418,19 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
     return None
 
 
-def get_upcoming_sessions_by_stream(stream_id: int, limit: int = 5) -> list[dict]:
+def get_upcoming_sessions_by_cohort(cohort_id: int, limit: int = 5) -> list[dict]:
     """
     Вернёт список ближайших занятий только для указанного потока.
-    Использует ту же логику, что и get_upcoming_sessions, но stream_id задаётся явно.
+    Использует ту же логику, что и get_upcoming_sessions, но cohort_id задаётся явно.
     """
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
         if _table_exists(con, "sessions"):
-            return _select_from_sessions(con, stream_id=stream_id, limit=limit)
+            return _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
         if _table_exists(con, "events"):
-            return _select_from_events(con, stream_id=stream_id, limit=limit)
+            return _select_from_events(con, cohort_id=cohort_id, limit=limit)
         if _table_exists(con, "session_days"):
-            return _select_from_session_days(con, stream_id=stream_id, limit=limit)
+            return _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
         return []
 
 
@@ -460,7 +467,7 @@ def get_nearest_session_text() -> str | None:
         return None
 
 
-def get_recent_past_sessions_by_cohort_(cohort_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+def get_recent_past_sessions_by_cohort(cohort_id: int, limit: int = 5) -> List[Dict[str, Any]]:
     """
     Последние прошедшие занятия потока (по start_date <= today), новее – выше.
     """
@@ -470,7 +477,7 @@ def get_recent_past_sessions_by_cohort_(cohort_id: int, limit: int = 5) -> List[
             """
             SELECT id, start_date, end_date, topic_code, title, annotation, cohort_id
             FROM sessions
-            WHERE stream_id = ? AND DATE (start_date) <= DATE ('now')
+            WHERE cohort_id = ? AND DATE (start_date) <= DATE ('now')
             ORDER BY DATE (start_date) DESC
                 LIMIT ?
             """,

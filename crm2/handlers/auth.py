@@ -19,7 +19,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 from crm2.db.core import get_db_connection
-from crm2.db.sessions import get_user_stream_title_by_tg
+from crm2.db.sessions import get_user_cohort_title_by_tg
 from crm2.handlers_schedule import send_nearest_session
 
 router = Router(name="auth")
@@ -181,7 +181,7 @@ async def login_password(message: Message, state: FSMContext) -> None:
     tg_id = message.from_user.id
     full_name = (uget(user, "full_name") or uget(user, "nickname") or "Гость").strip()
     role = (uget(user, "role") or "user").strip()
-    stream = uget(user, "stream_id") or uget(user, "cohort_id")
+    cohort = uget(user, "cohort_id") or uget(user, "cohort_id")
 
     from crm2.keyboards import role_kb
 
@@ -189,8 +189,8 @@ async def login_password(message: Message, state: FSMContext) -> None:
     lines = [f"Здравствуйте, {full_name}!"]
 
     role_line = f"Роль: {role}"
-    if stream is not None:
-        role_line += f" | Поток: {stream}"
+    if cohort is not None:
+        role_line += f" | Поток: {cohort}"
     lines.append(role_line)
 
     await message.answer("\n".join(lines), reply_markup=role_kb(role or "user"))
