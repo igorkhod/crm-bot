@@ -36,6 +36,7 @@ from crm2.handlers_schedule import router as schedule_router, send_schedule_keyb
 from crm2.handlers import attendance as attendance_router
 from crm2.handlers import profile as profile_router
 from crm2.handlers import admin_db as admin_db_router
+from crm2.handlers import admin_db_doctor as admin_db_doctor_router
 
 
 
@@ -104,7 +105,7 @@ dp.include_router(about_router.router)
 dp.include_router(profile_router.router)
 dp.include_router(attendance_router.router)
 dp.include_router(admin_db_router.router)
-
+dp.include_router(admin_db_doctor_router.router)
 
 
 # === Хэндлеры верхнего уровня (кнопки/команды) =============================
