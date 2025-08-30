@@ -39,8 +39,8 @@ def role_kb(role: str) -> ReplyKeyboardMarkup:
     # админ — добавляем кнопку входа в админ-панель
     if role == "admin":
         rows = [
-            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="ℹ️ Профиль")],
-            [KeyboardButton(text="🤖 ИИ-агенты"), KeyboardButton(text="⚙️ Админ"), KeyboardButton(text="↩️ Выйти в меню")],
+            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📚 Материалы"), KeyboardButton(text="👤 Личный кабинет")],
+            [KeyboardButton(text="🤖 ИИ-агенты"), KeyboardButton(text="⚙️ Админ"), KeyboardButton(text="📊 Посещение"), KeyboardButton(text="↩️ Выйти в меню")],
         ]
         return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
