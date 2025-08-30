@@ -1,6 +1,6 @@
 # crm2/handlers/admin/panel.py
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest
 
 # Если у тебя есть ограничитель доступа для админов — подключаем
@@ -20,16 +20,17 @@ def _admin_menu_kb() -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users"),
-            InlineKeyboardButton(text="🗓 Расписание",   callback_data="adm:schedule"),
+            InlineKeyboardButton(text="🗓 Расписание", callback_data="adm:schedule"),
         ],
         [
-            InlineKeyboardButton(text="📣 Рассылка",     callback_data="adm:broadcast"),
-            InlineKeyboardButton(text="🧾 Логи",         callback_data="adm:logs"),
+            InlineKeyboardButton(text="📣 Рассылка", callback_data="adm:broadcast"),
+            InlineKeyboardButton(text="🧾 Логи", callback_data="adm:logs"),
         ],
         [
-            InlineKeyboardButton(text="🩺 DB Doctor",    callback_data="adm:dbdoctor"),  # 👈 новая кнопка
+            InlineKeyboardButton(text="🩺 DB Doctor", callback_data="adm:dbdoctor"),
         ],
     ]
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -79,6 +80,20 @@ async def admin_broadcast_entry(cb: CallbackQuery):
 async def admin_logs_entry(cb: CallbackQuery):
     await cb.message.edit_text("🧾 Логи → сводка по рассылкам и служебные записи.")
     await cb.answer()
+
+# --- Переход в раздел «DB Doctor» (inline-кнопка в админ-меню) ----------------
+@router.callback_query(F.data == "adm:dbdoctor")
+async def admin_dbdoctor_entry(cb: CallbackQuery):
+    # выносим рендер меню в модуль доктора
+    from crm2.handlers import admin_db_doctor
+    await admin_db_doctor.show_menu(cb.message)   # show_menu ожидает Message
+    await cb.answer()
+
+# --- На всякий случай: если кнопка придёт текстом (reply-клавиатура) ----------
+@router.message(F.text == "🩺 DB Doctor")
+async def admin_dbdoctor_entry_text(message: Message):
+    from crm2.handlers import admin_db_doctor
+    await admin_db_doctor.show_menu(message)
 
 # --- Переход в раздел "DB Doctor" ---------------------------------------------
 @router.callback_query(F.data == "adm:dbdoctor")
