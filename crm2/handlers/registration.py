@@ -1,113 +1,62 @@
 # crm2/handlers/registration.py
+from __future__ import annotations
+
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-import logging
+from crm2.handlers import consent as consent_handlers
+from crm2.handlers.consent import has_consent  # уже есть в consent.py
+from crm2.db.users import get_user_by_tg, upsert_user  # безопасное создание/обновление
 
 router = Router()
-log = logging.getLogger(__name__)
+
+# ЕДИНЫЙ ключ колбэка для старта регистрации
+REG_START = "reg:start"
 
 
-# ─────────────────────────── FSM ───────────────────────────
-
-class RegistrationFSM(StatesGroup):
+class Reg(StatesGroup):
     full_name = State()
 
 
-# ─────────────────────────── Вспомогательные функции ───────────────────────────
+@router.callback_query(F.data == REG_START)
+async def on_register_click(cb: CallbackQuery, state: FSMContext) -> None:
+    """Вход из кнопки «Зарегистрироваться» (гостевое меню)."""
+    tg_id = cb.from_user.id
 
-def _save_full_name_to_db(telegram_id: int, full_name: str) -> bool:
-    """
-    Пытаемся сохранить ФИО в users:
-    1) Сначала — через crm2.db.users, если там есть подходящие функции.
-    2) Если нет — прямым запросом к SQLite (/var/data/crm.db).
-    Возвращает True при успехе, иначе False.
-    """
-    # Попытка №1: через модуль crm2.db.users (если есть)
-    try:
-        from crm2.db.users import get_user_by_tg, upsert_user_fields  # type: ignore
-        try:
-            user = get_user_by_tg(telegram_id)
-        except TypeError:
-            # get_user_by_tg мог быть sync/async; если вдруг async — игнор и идём дальше
-            user = None
+    # 1) Без согласия — сперва показываем экран согласия и выходим
+    if not has_consent(tg_id):
+        await consent_handlers.send_consent(cb.message)
+        await cb.answer()
+        return
 
-        # Универсальная "апсертовая" функция, если есть
-        if 'upsert_user_fields' in dir():
-            upsert_user_fields(telegram_id, {"full_name": full_name})  # type: ignore
-            return True
+    # 2) Иначе — старт регистрации
+    await start_registration(cb.message, state)
+    await cb.answer()
 
-        # Если нет upsert, попробуем обновить существующего или создать нового
-        from crm2.db.users import update_user_fields, create_user_min  # type: ignore
-        if user:
-            update_user_fields(telegram_id, {"full_name": full_name})  # type: ignore
-            return True
-        else:
-            create_user_min(telegram_id, {"full_name": full_name})  # type: ignore
-            return True
-    except Exception as e:
-        log.debug("users.py path not available or failed: %r", e)
-
-    # Попытка №2: прямой доступ к SQLite
-    try:
-        import sqlite3
-        DB_PATH = "/var/data/crm.db"
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        # Проверим, есть ли такой пользователь
-        cur.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
-        row = cur.fetchone()
-        if row:
-            cur.execute("UPDATE users SET full_name = ? WHERE telegram_id = ?", (full_name, telegram_id))
-        else:
-            # создаём минимальную запись
-            cur.execute(
-                "INSERT INTO users (telegram_id, full_name, role) VALUES (?, ?, COALESCE((SELECT 'user'), 'user'))",
-                (telegram_id, full_name),
-            )
-        con.commit()
-        con.close()
-        return True
-    except Exception as e:
-        log.warning("SQLite save full_name failed: %r", e)
-        return False
-
-
-# ─────────────────────────── Точка входа ───────────────────────────
 
 async def start_registration(message: Message, state: FSMContext) -> None:
-    """
-    Начинаем регистрацию. ВНИМАНИЕ: здесь больше НЕТ показа/проверки согласия —
-    согласие выводится в start.py перед вызовом этой функции.
-    """
-    await state.clear()
-    await state.set_state(RegistrationFSM.full_name)
+    """Старт регистрации (первый шаг)."""
+    await state.set_state(Reg.full_name)
     await message.answer("Введите ваше ФИО:")
 
 
-# ─────────────────────────── Шаги регистрации ───────────────────────────
-
-@router.message(RegistrationFSM.full_name)
-async def reg_full_name(message: Message, state: FSMContext):
+@router.message(Reg.full_name)
+async def reg_full_name(message: Message, state: FSMContext) -> None:
+    """Принимаем ФИО и сохраняем пользователя."""
     full_name = (message.text or "").strip()
-    if not full_name:
-        await message.answer("Пожалуйста, введите ФИО текстом.")
-        return
-
-    await state.update_data(full_name=full_name)
-
     tg_id = message.from_user.id
-    ok = _save_full_name_to_db(tg_id, full_name)
+    username = message.from_user.username or ""
 
-    if ok:
-        await message.answer(f"Спасибо, {full_name}! ✨\n"
-                             f"Профиль обновлён. Продолжим позже настройку кабинета.")
-    else:
-        await message.answer(f"Спасибо, {full_name}! ✨\n"
-                             f"Не удалось сохранить данные автоматически — сообщите администратору, пожалуйста.")
+    # Безопасный upsert (создаст, если нет; обновит, если уже есть)
+    upsert_user(
+        telegram_id=tg_id,
+        username=username,
+        full_name=full_name,
+        role="user",         # по умолчанию — обычный пользователь
+        cohort_id=None,      # пока не определяем поток
+    )
 
-    # Здесь можно добавить следующий шаг анкеты (никнейм/телефон/почта и т.д.)
-    # Пока завершаем сценарий:
     await state.clear()
+    await message.answer("✅ Готово! Профиль обновлён. Откройте «Главное меню».")
