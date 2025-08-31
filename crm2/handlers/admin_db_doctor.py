@@ -18,15 +18,16 @@ BTN_STRUCT = "📊 Структура БД"
 BTN_FIX = "🛠 Исправить sessions"
 BTN_INDEXES = "📂 Индексы"
 BTN_BACK = "↩️ Главное меню"
+BTN_BECOME_GUEST = "🙈 Стать гостем"
+BTN_BECOME_USER2 = "👤 Стать user поток 2"
 
 
 async def show_menu(message: Message):
     kb = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_STRUCT)],
-            [KeyboardButton(text=BTN_FIX)],
-            [KeyboardButton(text=BTN_INDEXES)],
-            [KeyboardButton(text=BTN_BACK)],
+            [KeyboardButton(text=BTN_STRUCT), KeyboardButton(text=BTN_FIX)],
+            [KeyboardButton(text=BTN_INDEXES), KeyboardButton(text=BTN_BACK)],
+            [KeyboardButton(text=BTN_BECOME_GUEST), KeyboardButton(text=BTN_BECOME_USER2)],
         ],
         resize_keyboard=True,
     )
@@ -106,6 +107,37 @@ async def action_indexes(message: Message):
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
 
+# ---------- 🙈 Стать гостем ----------
+@router.message(F.text == BTN_BECOME_GUEST)
+async def action_become_guest(message: Message):
+    try:
+        with get_db_connection() as con:
+            con.execute("DELETE FROM users WHERE telegram_id=?;", (message.from_user.id,))
+            con.commit()
+        await message.answer("✅ Вы полностью удалены из базы (гость).")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
+
+
+# ---------- 👤 Стать user поток 2 ----------
+@router.message(F.text == BTN_BECOME_USER2)
+async def action_become_user2(message: Message):
+    try:
+        tg_id = message.from_user.id
+        with get_db_connection() as con:
+            # Создаём минимальную запись, если не было (после «Стать гостем»)
+            con.execute(
+                "INSERT OR IGNORE INTO users (telegram_id, role, full_name) VALUES (?, 'user', '');",
+                (tg_id,),
+            )
+            con.execute(
+                "UPDATE users SET role='user', cohort_id=2 WHERE telegram_id=?;",
+                (tg_id,),
+            )
+            con.commit()
+        await message.answer("✅ Ваша роль изменена: user, поток = 2.")
+    except Exception as e:
+        await message.answer(f"Ошибка: {e}")
 
 # ---------- ↩️ Главное меню ----------
 @router.message(F.text == BTN_BACK)
