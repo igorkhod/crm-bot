@@ -57,8 +57,8 @@ async def agree(message: Message, state: FSMContext):
     # фиксируем согласие
     set_consent(message.from_user.id, True)
 
-    # всегда продолжаем регистрацию (если она не шла — начнётся сейчас)
-    from crm2.handlers.registration import RegistrationFSM  # lazy-импорт, чтобы не ловить циклический
+    # переводим на шаг регистрации (ФИО)
+    from crm2.handlers.registration import RegistrationFSM  # lazy import
     from aiogram.types import ReplyKeyboardRemove
 
     await state.set_state(RegistrationFSM.full_name)
