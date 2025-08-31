@@ -1,52 +1,37 @@
-# crm2/handlers/start.py
+# === crm2/handlers/start.py ===
+from aiogram import Router, types
+from aiogram.filters import CommandStart
+from crm2.db.users import get_user_by_tg
+from crm2.keyboards._impl import guest_start_kb, role_kb
 
-from aiogram import Router
-from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-
-from crm2.handlers.consent import has_consent, consent_kb, CONSENT_TEXT
-
-import sqlite3
-from crm2.db.sqlite import DB_PATH
-from crm2.keyboards import guest_start_kb, role_kb
-from crm2.keyboards import guest_start_kb
+router = Router()
 
 
-router = Router(name="start")
+@router.message(CommandStart())
+async def cmd_start(message: types.Message) -> None:
+    """
+    /start
+    - Гость: показываем приветствие и гостевое меню (Войти / Регистрация / О проекте).
+    - Зарегистрированный: сразу попадаем в главное меню (без авто-перехода в расписание).
+    """
+    tg_id = message.from_user.id
 
-@router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
-    await state.clear()
+    # Пытаемся найти пользователя в БД
+    user = await get_user_by_tg(tg_id)
 
-    # --- проверяем пользователя в БД и его роль ---
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        row = con.execute(
-            "SELECT role FROM users WHERE telegram_id = ? LIMIT 1",
-            (message.from_user.id,),
-        ).fetchone()
-
-    is_new = row is None
-    role = (row["role"] if row and row["role"] else "curious")
-
-    # --- новые пользователи: поэтическое приветствие + явная подсказка ---
-    if is_new:
-        text = (
-            "🌌 *Добро пожаловать в Psytech!*\n\n"
-            "Здесь начинается путь — от рассеянности к ясности, "
-            "от суеты к собранности, от привычного к свободе.\n\n"
-            "Мы бережно соединяем практики внимания и воли, чтобы ты смог "
-            "раскрыть внутренний источник силы и устойчивости.\n\n"
-            "Нажмите *«Войти»* или *«Регистрация»*, чтобы продолжить."
+    # --- Гость ---
+    if user is None:
+        await message.answer(
+            "Добро пожаловать в *Psytech*! 🌌\n"
+            "Вы можете войти, зарегистрироваться или сначала узнать о проекте.",
+            reply_markup=guest_start_kb(),
+            parse_mode="Markdown",
         )
-        await message.answer(text, parse_mode="Markdown", reply_markup=guest_start_kb())
         return
 
-    # --- для зарегистрированных: проверка согласия (если требуется) ---
-    if not has_consent(message.from_user.id):
-        await message.answer(CONSENT_TEXT, reply_markup=consent_kb())
-        return
-
-    # --- зарегистрированных кидаем сразу в главное меню и открываем подменю расписания ---
-    await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
+    # --- Зарегистрированный пользователь ---
+    role = (user.get("role") or "user").strip()
+    await message.answer(
+        f"Главное меню (ваша роль: {role})",
+        reply_markup=role_kb(role),
+    )
