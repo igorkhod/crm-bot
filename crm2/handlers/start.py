@@ -1,7 +1,12 @@
 # crm2/handlers/start.py
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import (
+    Message, CallbackQuery,
+    ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardRemove,
+)
 from aiogram.fsm.context import FSMContext
 
 from crm2.db.users import get_user_by_tg
@@ -10,6 +15,10 @@ from crm2.keyboards.main_menu import role_kb
 # Мягкие зависимости (если модулей нет — просто пропустим)
 from crm2.handlers import welcome as welcome_handlers
 from crm2.handlers import registration as registration_handlers
+from crm2.handlers.registration import RegistrationFSM
+
+# ✳️ Импортируем функции согласия (исправляет ошибки has_consent / consent_kb)
+from crm2.handlers.consent import has_consent, consent_kb
 
 router = Router()
 
@@ -87,26 +96,32 @@ async def cmd_start(message: Message) -> None:
     await send_main_menu(message, role)
 
 
-@router.message(F.text == "📝 Зарегистрироваться")
 async def start_guest_onboarding(message: Message, state: FSMContext) -> None:
-    """
-    Гость нажал «Зарегистрироваться»: один раз показываем приветствие (если нужно)
-    и выводим блок согласия. До согласия дальше не идём.
-    """
-    # Небольшое приветствие (не дублируем, если уже было показано ранее)
-    data = await state.get_data()
-    if not data.get("welcome_shown"):
-        if hasattr(welcome_handlers, "show_welcome"):
-            await welcome_handlers.show_welcome(message)
-        else:
-            await message.answer(
-                "Добро пожаловать в Psytech! 🌌 Здесь начинается путь из дисциплины в свободу.\n"
-                "Ниже — важные шаги для запуска."
-            )
-        await state.update_data(welcome_shown=True)
+    tg_id = message.from_user.id
 
-    # Обязательное согласие
-    await show_consent(message, state)
+    # 1) Тёплое приветствие
+    await message.answer(
+        "Добро пожаловать в Psytech! 🌌 Здесь начинается путь из дисциплины в свободу.\n"
+        "Ниже — важные шаги для запуска."
+    )
+
+    # 2) Если согласия нет — показываем ОДНО сообщение с кнопкой «Открыть документ»
+    #    и просим нажать «Соглашаюсь» (клавиатура из consent_kb()).
+    if not has_consent(tg_id):
+        await message.answer(
+            "Для продолжения требуется согласие на обработку персональных данных.\n"
+            "Ознакомьтесь с документом и подтвердите согласие.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[  # только ссылка на документ
+                InlineKeyboardButton(text="📑 Открыть документ", url=CONSENT_URL)
+            ]])
+        )
+        # Показываем только клавиатуру «Соглашаюсь» (без дополнительного текста).
+        await message.answer(" ", reply_markup=consent_kb())
+        return
+
+    # 3) Если согласие уже есть — сразу начинаем регистрацию
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.callback_query(F.data == CONSENT_CB)
