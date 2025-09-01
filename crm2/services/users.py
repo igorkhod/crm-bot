@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/services/users.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _now_iso, ensure_user, classify_role, set_role, get_user_by_telegram, verify_password, get_user_cohort_id_by_tg, get_user_cohort_title_by_tg, get_user_cohort_code_by_tg
+# === Конец автозаголовка
 #
 # === Файл: crm2/services/users.py
 # Аннотация: модуль CRM, доступ к SQLite/ORM. Внутри функции: _now_iso, ensure_user, classify_role, set_role, get_user_by_telegram.

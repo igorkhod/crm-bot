@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/sqlite.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _query_only_enabled, _apply_pragmas_sync, _apply_pragmas_async, get_db_connection, aget_db_connection, ensure_schema
+# === Конец автозаголовка
 #
 # === Файл: crm2/db/sqlite.py
 # Аннотация: модуль CRM, доступ к SQLite/ORM. Внутри функции: get_db_connection, aget_db_connection, ensure_schema.

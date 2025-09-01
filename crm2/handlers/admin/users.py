@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/admin/users.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: admin_users_entry, admin_users_groups, _group_human, _user_line, _show_group_page, admin_users_pick_group, admin_users_page, admin_back
+# === Конец автозаголовка
 # crm2/handlers/admin/users.py
 # Краткая аннотация: подменю "Пользователи" — выбор группы и списки с пагинацией
 

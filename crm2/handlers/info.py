@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/info.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _get, _code, _fmt_date, _build_details_kb, show_schedule, session_details, show_agents, open_meditation, open_harmony, open_agents_instruction, back_to_main, show_project_menu, how_sessions_go, back_to_main_from_project
+# === Конец автозаголовка
 #
 # === Файл: crm2/handlers/info.py
 # Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x. Внутри функции: _get, _code, _fmt_date, _build_details_kb, show_schedule....

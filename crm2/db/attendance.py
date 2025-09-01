@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/attendance.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: get_last_attendance, get_summary, _table_exists
+# === Конец автозаголовка
 # crm2/db/attendance.py
 from __future__ import annotations
 import sqlite3

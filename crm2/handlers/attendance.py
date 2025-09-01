@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/attendance.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: AttStates
+# Функции: attendance_entry, pick_cohort, show_cohort_sessions, enter_attendance, enter_payments, on_pick_session, _mark_kb_att, _mark_kb_pay, mark_attendance, mark_payment
+# === Конец автозаголовка
 # crm2/handlers/attendance.py
 from __future__ import annotations
 

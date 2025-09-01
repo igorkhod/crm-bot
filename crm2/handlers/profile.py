@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/profile.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _get_user_row, show_profile, toggle_notify, my_materials
+# === Конец автозаголовка
 # crm2/handlers/profile.py
 from __future__ import annotations
 

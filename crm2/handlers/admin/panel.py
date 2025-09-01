@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/admin/panel.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _admin_menu_kb, admin_panel_kb, render_admin_panel, admin_entry_msg, admin_open_cb, admin_users_entry, admin_schedule_entry, admin_broadcast_entry, admin_logs_entry, admin_dbdoctor_entry, admin_dbdoctor_entry_text
+# === Конец автозаголовка
 # crm2/handlers/admin/panel.py
 from aiogram import Router, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message

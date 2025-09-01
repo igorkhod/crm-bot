@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/schedule_loader.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: Row
+# Функции: _norm, _pick, _detect_cohort_from_filename, _iter_xlsx, sync_schedule_from_files, list_schedule_files, sync_schedule_autodiscover
+# === Конец автозаголовка
 
 from __future__ import annotations
 

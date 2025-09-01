@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/schedule_repo.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _dicts, count_trainings, list_trainings, count_events, list_events, count_healings, list_healings, count_all, list_all
+# === Конец автозаголовка
 # crm2/db/schedule_repo.py
 from typing import List, Dict, Any, Tuple
 from sqlite3 import Row

@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/users.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: get_db_connection, _row_to_dict, list_users, list_users_by_role, list_users_by_cohort, get_user_by_tg, get_user_by_nickname, delete_user_by_tg, upsert_user
+# === Конец автозаголовка
 """
 crm2/db/users.py
 Работа с таблицей users: получение, поиск, создание, обновление.

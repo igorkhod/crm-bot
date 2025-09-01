@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/services/schedule.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: Session
+# Функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file, load_all, get_user_cohort_id, upcoming, format_next, format_sessions_brief, next_training_text_for_user
+# === Конец автозаголовка
 #
 # === Файл: crm2/services/schedule.py
 # Аннотация: модуль CRM, расписание и события. Внутри классы: Session, функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file....

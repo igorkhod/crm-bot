@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/admin/schedule.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: schedule_menu, _render_menu, trainings_entry, trainings_cohort, trainings_page, _render_trainings, events_entry, events_page, _render_events, healings_entry, healings_page, _render_healings, all_entry, all_page, _render_all
+# === Конец автозаголовка
 # crm2/handlers/admin/schedule.py
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message

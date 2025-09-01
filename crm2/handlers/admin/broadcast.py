@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/admin/broadcast.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: BroadcastFSM
+# Функции: audience_kb, cohorts_kb, confirm_kb, start_broadcast, choose_audience, set_cohort, set_text, no_attach, with_attach, preview, back_to_text, do_send, cancel_bc, back_bc
+# === Конец автозаголовка
 from __future__ import annotations
 import asyncio, json, math
 from aiogram import Router, F

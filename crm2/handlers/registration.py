@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/registration.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: RegistrationFSM
+# Функции: start_registration_cb, reg_full_name, reg_phone, reg_email
+# === Конец автозаголовка
 # crm2/handlers/registration.py
 from __future__ import annotations
 

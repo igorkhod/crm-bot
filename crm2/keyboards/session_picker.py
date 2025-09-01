@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/keyboards/session_picker.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: build_session_picker
+# === Конец автозаголовка
 # crm2/keyboards/session_picker.py
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 

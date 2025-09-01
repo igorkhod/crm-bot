@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/auth.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: LoginSG
+# Функции: _normalize, _is_bcrypt, _check_password, _human_name, _user_role, _bind_telegram_id, _fetch_user_by_credentials, cmd_login, login_nickname, login_password, _show_role_keyboard
+# === Конец автозаголовка
 # -*- coding: utf-8 -*-
 # crm2/handlers/auth.py
 # """Хендлеры входа/авторизации."""

@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/migrate_admin.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: ensure_admin_schema
+# === Конец автозаголовка
 from __future__ import annotations
 from crm2.db.core import get_db_connection
 

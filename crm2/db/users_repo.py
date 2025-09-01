@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/users_repo.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _users_columns, _cohort_expr, _where_for_group, _row_to_dict, count_users, list_users
+# === Конец автозаголовка
 # crm2/db/users_repo.py
 from typing import List, Dict, Any
 from sqlite3 import Row

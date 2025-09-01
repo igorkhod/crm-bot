@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/utils/guards.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: AdminOnly
+# Функции: —
+# === Конец автозаголовка
 from aiogram import BaseMiddleware
 from typing import Callable, Dict, Any, Awaitable
 from crm2.db.core import get_db_connection

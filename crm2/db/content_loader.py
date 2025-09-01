@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/content_loader.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _parse_md, sync_content_from_files
+# === Конец автозаголовка
 from __future__ import annotations
 import re, datetime as dt
 from pathlib import Path

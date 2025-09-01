@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/admin/logs.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: logs_menu_kb, logs_overview
+# === Конец автозаголовка
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from crm2.utils.guards import AdminOnly

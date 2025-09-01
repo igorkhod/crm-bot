@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/db/auto_migrate.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _exec, _has_column, ensure_topics_and_session_days, ensure_events_and_healings, ensure_user_flags_and_attendance, ensure_schedule_schema, ensure_all_schemas
+# === Конец автозаголовка
 # crm2/db/auto_migrate.py
 from __future__ import annotations
 

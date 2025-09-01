@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/tools/sync_events_xlsx.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: pick, to_iso, ensure_schema, sync_one_file, main
+# === Конец автозаголовка
 # === Файл: crm2/tools/sync_events_xlsx.py
 # Аннотация: синхронизация расписаний из директории .xlsx в таблицу events_xlsx.
 from __future__ import annotations

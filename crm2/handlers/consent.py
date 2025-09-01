@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers/consent.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: consent_kb, has_consent, set_consent, agree
+# === Конец автозаголовка
 # crm2/handlers/consent.py
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove

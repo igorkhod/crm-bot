@@ -1,3 +1,9 @@
+# === Автогенерированный заголовок: crm2/handlers_schedule.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: send_schedule_keyboard, send_nearest_session, _info_menu_kb, show_info_menu, _show_cohort1, _show_cohort2, _show_new, _show_all_schedule, _show_main_menu, on_session_click
+# === Конец автозаголовка
 
 from __future__ import annotations
 
