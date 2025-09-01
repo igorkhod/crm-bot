@@ -1,9 +1,10 @@
 # crm2/handlers/consent.py
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.fsm.context import FSMContext
 
 from crm2.db.core import get_db_connection
-from aiogram.fsm.context import FSMContext
+from crm2.handlers.registration import RegistrationFSM  # чтобы PyCharm не ругался
 
 router = Router(name="consent")
 
@@ -39,27 +40,17 @@ def set_consent(tg_id: int, given: bool = True) -> None:
             """
             INSERT INTO consents (telegram_id, given)
             VALUES (?, ?) ON CONFLICT(telegram_id) DO
-            UPDATE SET given=excluded.given, ts= CURRENT_TIMESTAMP
+            UPDATE SET given=excluded.given, ts=CURRENT_TIMESTAMP
             """,
             (tg_id, 1 if given else 0),
         )
         con.commit()
 
 
-from aiogram.filters import StateFilter
-
-from aiogram import F
-from aiogram.fsm.context import FSMContext
-
-
 @router.message(F.text == "Соглашаюсь")
 async def agree(message: Message, state: FSMContext):
     # фиксируем согласие
     set_consent(message.from_user.id, True)
-
-    # переводим на шаг регистрации (ФИО)
-    from crm2.handlers.registration import RegistrationFSM  # lazy import
-    from aiogram.types import ReplyKeyboardRemove
-
+    # переводим на первый шаг регистрации (ФИО)
     await state.set_state(RegistrationFSM.full_name)
     await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())

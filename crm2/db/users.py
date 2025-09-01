@@ -1,101 +1,146 @@
-# crm2/db/users.py
-# Работа с таблицей users: выборки по cohort_id и по telegram_id.
-# Самодостаточен: содержит собственный get_db_connection(), не зависит от crm2.db._impl.
+"""
+crm2/db/users.py
+Работа с таблицей users: получение, поиск, создание, обновление.
+"""
 
-from __future__ import annotations
-
-import os
 import sqlite3
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Iterable, Tuple
+from typing import Optional, List, Dict, Any
 
-# Путь к базе: берём из env DB_PATH, иначе crm.db в корне проекта
-DB_PATH = Path(os.getenv("DB_PATH", "crm.db")).resolve()
+from crm2.utils.config import DB_PATH
 
+
+# ───────────────────────────────────────────────────────────────────────────────
+# ВСПОМОГАТЕЛЬНЫЕ
+# ───────────────────────────────────────────────────────────────────────────────
 
 def get_db_connection() -> sqlite3.Connection:
     """
-    Открывает подключение к SQLite с включёнными foreign_keys.
-    Вызывающему важно закрыть соединение (используйте with ... as con).
+    Открывает соединение с SQLite с row_factory=sqlite3.Row.
     """
-    con = sqlite3.connect(str(DB_PATH))
-    con.execute("PRAGMA foreign_keys = ON;")
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
     return con
 
 
 def _row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
-    """Преобразует sqlite3.Row в словарь."""
-    return {k: row[k] for k in row.keys()}
-
-
-def _fetch_all(con: sqlite3.Connection, sql: str, args: Iterable[Any] = ()) -> List[sqlite3.Row]:
-    con.row_factory = sqlite3.Row
-    cur = con.execute(sql, tuple(args))
-    try:
-        return cur.fetchall()
-    finally:
-        cur.close()
-
-
-def _fetch_one(con: sqlite3.Connection, sql: str, args: Iterable[Any] = ()) -> Optional[sqlite3.Row]:
-    con.row_factory = sqlite3.Row
-    cur = con.execute(sql, tuple(args))
-    try:
-        return cur.fetchone()
-    finally:
-        cur.close()
+    """
+    Преобразует sqlite3.Row в dict.
+    """
+    return dict(row)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
-# ПУБЛИЧНЫЕ ФУНКЦИИ
+# ФУНКЦИИ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ
 # ───────────────────────────────────────────────────────────────────────────────
+
+def list_users() -> List[Dict[str, Any]]:
+    """Возвращает список всех пользователей."""
+    with get_db_connection() as con:
+        rows = con.execute("SELECT * FROM users").fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+
+def list_users_by_role(role: str) -> List[Dict[str, Any]]:
+    """Возвращает список пользователей по роли."""
+    with get_db_connection() as con:
+        rows = con.execute("SELECT * FROM users WHERE role = ?", (role,)).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
 
 def list_users_by_cohort(cohort_id: int) -> List[Dict[str, Any]]:
-    """
-    Вернёт список пользователей, привязанных к коорте (потоку).
-    Поля: id, telegram_id, username, nickname, full_name, role, phone, email, cohort_id
-    """
-    sql = """
-        SELECT
-            id,
-            telegram_id,
-            username,
-            nickname,
-            full_name,
-            role,
-            phone,
-            email,
-            cohort_id
-        FROM users
-        WHERE cohort_id = ?
-        ORDER BY COALESCE(full_name, username, nickname) COLLATE NOCASE
-    """
+    """Возвращает список пользователей по cohort_id."""
     with get_db_connection() as con:
-        rows = _fetch_all(con, sql, (cohort_id,))
-    return [_row_to_dict(r) for r in rows]
+        rows = con.execute("SELECT * FROM users WHERE cohort_id = ?", (cohort_id,)).fetchall()
+        return [_row_to_dict(r) for r in rows]
 
 
 def get_user_by_tg(telegram_id: int) -> Optional[Dict[str, Any]]:
+    """Возвращает пользователя по telegram_id."""
+    with get_db_connection() as con:
+        row = con.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+        return _row_to_dict(row) if row else None
+
+
+def get_user_by_nickname(nickname: str) -> Optional[Dict[str, Any]]:
+    """Возвращает пользователя по nickname."""
+    with get_db_connection() as con:
+        row = con.execute("SELECT * FROM users WHERE nickname = ?", (nickname,)).fetchone()
+        return _row_to_dict(row) if row else None
+
+
+def delete_user_by_tg(telegram_id: int) -> None:
+    """Удаляет пользователя по telegram_id."""
+    with get_db_connection() as con:
+        con.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+        con.commit()
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# UPSERT (создать или обновить пользователя)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def upsert_user(
+    telegram_id: int,
+    username: Optional[str] = None,
+    full_name: Optional[str] = None,
+    role: Optional[str] = None,
+    cohort_id: Optional[int] = None,
+    nickname: Optional[str] = None,
+    password: Optional[str] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+) -> int:
     """
-    Вернёт данные пользователя по его telegram_id или None, если не найден.
-    """
-    sql = """
-        SELECT
-            id,
-            telegram_id,
-            username,
-            nickname,
-            full_name,
-            role,
-            phone,
-            email,
-            events,
-            participants,
-            cohort_id
-        FROM users
-        WHERE telegram_id = ?
-        LIMIT 1
+    Создаёт пользователя, если его нет; иначе — обновляет непустые поля.
+    Возвращает id пользователя.
     """
     with get_db_connection() as con:
-        row = _fetch_one(con, sql, (telegram_id,))
-    return _row_to_dict(row) if row else None
+        cur = con.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,))
+        row = cur.fetchone()
+
+        if row:
+            # обновляем только явно переданные поля
+            sets, params = [], []
+
+            def add(col, val):
+                if val is not None:
+                    sets.append(f"{col} = ?")
+                    params.append(val)
+
+            add("username", username)
+            add("full_name", full_name)
+            add("role", role)
+            add("cohort_id", cohort_id)
+            add("nickname", nickname)
+            add("password", password)
+            add("phone", phone)
+            add("email", email)
+
+            if sets:
+                params.append(telegram_id)
+                con.execute(f"UPDATE users SET {', '.join(sets)} WHERE telegram_id = ?", params)
+                con.commit()
+
+            return row[0]
+
+        # вставка нового пользователя
+        con.execute(
+            """
+            INSERT INTO users (telegram_id, username, full_name, role, cohort_id, nickname, password, phone, email)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                telegram_id,
+                username,
+                full_name,
+                role or "user",
+                cohort_id,
+                nickname,
+                password,
+                phone,
+                email,
+            ),
+        )
+        con.commit()
+        new_id = con.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()[0]
+        return new_id

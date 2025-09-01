@@ -2,61 +2,78 @@
 from __future__ import annotations
 
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
+from aiogram.types import Message, ReplyKeyboardRemove
 
-from crm2.handlers import consent as consent_handlers
-from crm2.handlers.consent import has_consent  # уже есть в consent.py
-from crm2.db.users import get_user_by_tg, upsert_user  # безопасное создание/обновление
+from crm2.db.users import get_user_by_tg, upsert_user  # upsert для безопасного создания/обновления
 
-router = Router()
+router = Router(name="registration")
 
-# ЕДИНЫЙ ключ колбэка для старта регистрации
-REG_START = "reg:start"
+# Единый callback-ключ для старта регистрации (его дергает start.py)
+REG_START = "registration:start"
 
 
-class Reg(StatesGroup):
+class RegistrationFSM(StatesGroup):
     full_name = State()
+    phone = State()
+    email = State()
+    # при необходимости можно добавить password/state и т.п.
 
 
 @router.callback_query(F.data == REG_START)
-async def on_register_click(cb: CallbackQuery, state: FSMContext) -> None:
-    """Вход из кнопки «Зарегистрироваться» (гостевое меню)."""
-    tg_id = cb.from_user.id
-
-    # 1) Без согласия — сперва показываем экран согласия и выходим
-    if not has_consent(tg_id):
-        await consent_handlers.send_consent(cb.message)
-        await cb.answer()
-        return
-
-    # 2) Иначе — старт регистрации
-    await start_registration(cb.message, state)
+async def start_registration_cb(cb, state: FSMContext):
+    """Старт из инлайн-кнопки (гостевое меню)."""
+    await state.clear()
+    await state.set_state(RegistrationFSM.full_name)
+    await cb.message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
     await cb.answer()
 
 
-async def start_registration(message: Message, state: FSMContext) -> None:
-    """Старт регистрации (первый шаг)."""
-    await state.set_state(Reg.full_name)
-    await message.answer("Введите ваше ФИО:")
-
-
-@router.message(Reg.full_name)
-async def reg_full_name(message: Message, state: FSMContext) -> None:
-    """Принимаем ФИО и сохраняем пользователя."""
+@router.message(RegistrationFSM.full_name)
+async def reg_full_name(message: Message, state: FSMContext):
     full_name = (message.text or "").strip()
-    tg_id = message.from_user.id
-    username = message.from_user.username or ""
+    if not full_name:
+        await message.answer("Пожалуйста, укажите ФИО текстом.")
+        return
 
-    # Безопасный upsert (создаст, если нет; обновит, если уже есть)
+    await state.update_data(full_name=full_name)
+    await state.set_state(RegistrationFSM.phone)
+    await message.answer("Введите ваш номер телефона:")
+
+
+@router.message(RegistrationFSM.phone)
+async def reg_phone(message: Message, state: FSMContext):
+    phone = (message.text or "").strip()
+    if not phone:
+        await message.answer("Пожалуйста, укажите номер телефона.")
+        return
+
+    await state.update_data(phone=phone)
+    await state.set_state(RegistrationFSM.email)
+    await message.answer("Введите ваш email:")
+
+
+@router.message(RegistrationFSM.email)
+async def reg_email(message: Message, state: FSMContext):
+    email = (message.text or "").strip()
+    if not email or "@" not in email:
+        await message.answer("Пожалуйста, укажите корректный email.")
+        return
+
+    data = await state.get_data()
+    tg_id = message.from_user.id
+
+    # создаём/обновляем запись пользователя
     upsert_user(
         telegram_id=tg_id,
-        username=username,
-        full_name=full_name,
-        role="user",         # по умолчанию — обычный пользователь
-        cohort_id=None,      # пока не определяем поток
+        username=message.from_user.username,
+        full_name=data.get("full_name", ""),
+        phone=data.get("phone", ""),
+        email=email,
+        role="user",   # после регистрации — обычный пользователь
+        cohort_id=None # можно назначить позже
     )
 
     await state.clear()
-    await message.answer("✅ Готово! Профиль обновлён. Откройте «Главное меню».")
+    await message.answer("✅ Регистрация завершена. Добро пожаловать в систему!")

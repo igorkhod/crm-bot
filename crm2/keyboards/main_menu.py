@@ -1,11 +1,17 @@
 # crm2/keyboards/main_menu.py
-from aiogram.types import KeyboardButton
-from ._impl import guest_start_kb as _guest_start_kb, role_kb as _role_kb
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-def guest_start_kb():
-    return _guest_start_kb()
-
-def role_kb(role: str):
-    return _role_kb(role)
-
-KeyboardButton(text="🩺 DB Doctor")
+def main_menu_kb() -> ReplyKeyboardMarkup:
+    """
+    Главное пользовательское меню.
+    Совместимо с существующей логикой start.py (именно это имя функции импортируется).
+    """
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📦 Материалы")],
+            [KeyboardButton(text="👤 Личный кабинет")],
+            [KeyboardButton(text="🧠 ИИ-агенты"), KeyboardButton(text="⚙️ Админ")],
+            [KeyboardButton(text="🔙 Выйти в меню")],
+        ],
+        resize_keyboard=True
+    )

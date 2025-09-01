@@ -6,6 +6,7 @@
 # crm2/config.py
 from __future__ import annotations
 import os
+from typing import Final
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +19,13 @@ except Exception:
 BASE_DIR = Path(__file__).resolve().parents[1]  # .../crm
 
 # На сервере Render есть /var/data → по умолчанию используем его.
-DEFAULT_DB = "/var/data/crm.db" if os.path.isdir("/var/data") else str(BASE_DIR / "crm2.db")
+DEFAULT_DB: Final[str] = "/var/data/crm.db" if os.path.isdir("/var/data") else str(BASE_DIR / "crm2.db")
+
+# Глобальная точка правды для путя к БД (нужна модулям, которые делают `from crm2.config import DB_PATH`)
+DB_PATH: Final[str] = os.getenv("CRM_DB") or DEFAULT_DB
+
+
+DB_PATH = os.getenv("CRM_DB") or DEFAULT_DB
 
 @dataclass(frozen=True)
 class Settings:
@@ -34,5 +41,8 @@ def get_settings() -> Settings:
     admin_raw = (os.getenv("ADMIN_ID") or "").strip()
     admin_id = int(admin_raw) if admin_raw.isdigit() else None
     log_level = (os.getenv("LOG_LEVEL") or "INFO").upper()
-    db_path = os.getenv("CRM_DB") or DEFAULT_DB
-    return Settings(token, admin_id, log_level, db_path)
+    # используем глобальную константу DB_PATH
+
+    return Settings(token, admin_id, log_level, DB_PATH)
+
+__all__ = ["get_settings", "Settings", "DB_PATH", "DEFAULT_DB", "BASE_DIR"]
