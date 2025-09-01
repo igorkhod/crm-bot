@@ -6,8 +6,7 @@ crm2/db/users.py
 import sqlite3
 from typing import Optional, List, Dict, Any
 
-from crm2.utils.config import DB_PATH
-
+from crm2.config import DB_PATH
 
 # ───────────────────────────────────────────────────────────────────────────────
 # ВСПОМОГАТЕЛЬНЫЕ

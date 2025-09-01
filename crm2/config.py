@@ -24,9 +24,6 @@ DEFAULT_DB: Final[str] = "/var/data/crm.db" if os.path.isdir("/var/data") else s
 # Глобальная точка правды для путя к БД (нужна модулям, которые делают `from crm2.config import DB_PATH`)
 DB_PATH: Final[str] = os.getenv("CRM_DB") or DEFAULT_DB
 
-
-DB_PATH = os.getenv("CRM_DB") or DEFAULT_DB
-
 @dataclass(frozen=True)
 class Settings:
     TELEGRAM_TOKEN: str

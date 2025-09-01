@@ -5,7 +5,7 @@
 
 import asyncio
 from .app import main
-from .db.bootstrap import ensure_min_schema
+from .db.auto_migrate import ensure_all_schemas as ensure_min_schema
 ensure_min_schema()
 
 
