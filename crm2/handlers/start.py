@@ -16,34 +16,33 @@ from crm2.keyboards import guest_start_kb
 router = Router()
 
 
-
-# def guest_menu_kb() -> InlineKeyboardBuilder:
-#     kb = InlineKeyboardBuilder()
-#     kb.button(text="🔐 Войти", callback_data="login:start")
-#     kb.button(text="📝 Зарегистрироваться", callback_data=REG_START)  # <-- единый ключ
-#     kb.button(text="📄 О проекте", callback_data="about:project")
-#     kb.adjust(2, 1)
-#     return kb
+# Профиль считаем завершённым, если заполнены nickname и password.
+def _profile_complete(u: dict | None) -> bool:
+    if not u:
+        return False
+    nick = (u.get("nickname") or "").strip()
+    pwd  = (u.get("password") or "").strip()
+    return bool(nick and pwd)
 
 
 @router.message(F.text == "/start")
 async def cmd_start(message: Message) -> None:
-    # """Разводим новых и существующих пользователей:
-    #    - новые → гостевое меню
-    #    - зарегистрированные → сразу в главное меню."""
     tg_id = message.from_user.id
     user = get_user_by_tg(tg_id)
+  # В главное меню пускаем ТОЛЬКО при полном профиле
+    if _profile_complete(user):
+        await message.answer(
+            "Главное меню (ваша роль: {role})".format(role=user.get("role", "user")),
+            reply_markup = main_menu_kb(),
+        )
 
-    if user and (user.get("role") or "user") != "guest":
-        # Уже есть в БД → отправляем в главное меню
-        await message.answer("Главное меню (ваша роль: {role})".format(role=user.get("role", "user")),
-                             reply_markup=main_menu_kb())
         return
 
-    # Гость / новый пользователь → приветствие + явная подсказка
     text = (
         "Добро пожаловать в Psytech! 🧭 Здесь начинается путь из дисциплины в свободу.\n"
         "Ниже — важные шаги для запуска.\n\n"
+        "У вас не завершена регистрация или вы не вошли в систему.\n"
         "Вы гость. Выберите действие:"
+
     )
     await message.answer(text, reply_markup=guest_start_kb())
