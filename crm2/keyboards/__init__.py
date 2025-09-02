@@ -7,6 +7,8 @@ from .main_menu import main_menu_kb
 from .schedule import format_range, build_schedule_keyboard
 from .info_menu import info_menu_kb
 from .admin_users import users_groups_kb, users_pager_kb
+from .schedule import schedule_root_kb
+
 __all__ = [
     'guest_start_kb', 'role_kb', 'guest_kb',
     'main_menu_kb',
@@ -14,3 +16,5 @@ __all__ = [
     'info_menu_kb',
     'users_groups_kb', 'users_pager_kb',
 ]
+
+__all__ += ["schedule_root_kb"]

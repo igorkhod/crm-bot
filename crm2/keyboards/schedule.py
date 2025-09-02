@@ -10,6 +10,16 @@ from datetime import datetime
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
+def schedule_root_kb() -> "InlineKeyboardMarkup":
+    kb = InlineKeyboardBuilder()
+    kb.button(text="1 поток", callback_data="sch:cohort:1")
+    kb.button(text="2 поток", callback_data="sch:cohort:2")
+    kb.button(text="Мероприятия", callback_data="sch:events")
+    kb.button(text="Все события", callback_data="sch:all")
+    kb.adjust(2, 2)
+    return kb.as_markup()
+
+
 def _fmt_date(d):
     if isinstance(d, str):
         return datetime.fromisoformat(d).strftime("%d.%m.%Y")

@@ -435,20 +435,19 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
     return None
 
 
-def get_upcoming_sessions_by_cohort(cohort_id: int, limit: int = 5) -> list[dict]:
-
-    """
-    Вернёт список ближайших занятий только для указанного потока.
-    Использует ту же логику, что и get_upcoming_sessions, но cohort_id задаётся явно.
-    """
+def get_upcoming_sessions_by_cohort(cohort_id: int | None, *, limit: int = 50) -> list[dict]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
+        # 1) sessions → 2) events → 3) session_days (пошаговый фолбэк)
         if _table_exists(con, "sessions"):
-            return _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
+            if rows: return rows
         if _table_exists(con, "events"):
-            return _select_from_events(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_events(con, cohort_id=cohort_id, limit=limit)
+            if rows: return rows
         if _table_exists(con, "session_days"):
-            return _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
+            if rows: return rows
         return []
 
 

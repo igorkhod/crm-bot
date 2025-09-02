@@ -274,6 +274,35 @@ def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
     return [s for s in pool if s.end >= today][:limit]
 
 
+from crm2.db.sessions import get_upcoming_sessions_by_cohort
+
+def list_for_cohort(cohort_id: int, *, limit: int = 50) -> list[Session]:
+    rows = get_upcoming_sessions_by_cohort(cohort_id, limit=limit)
+    return _rows_to_sessions(rows)[:limit]
+
+def list_all(*, limit: int = 50) -> list[Session]:
+    rows = get_upcoming_sessions_by_cohort(None, limit=limit)  # без фильтра потока
+    return _rows_to_sessions(rows)[:limit]
+
+def _rows_to_sessions(rows) -> list[Session]:
+    def _to_date(s: str) -> date:
+        return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
+    items = []
+    for r in rows or []:
+        try:
+            items.append(Session(
+                start=_to_date(r["start_date"]),
+                end=_to_date(r["end_date"]),
+                code=str(r.get("topic_code") or ""),
+                title=str(r.get("title") or ""),
+                annotation=str(r.get("annotation") or ""),
+            ))
+        except Exception:
+            continue
+    return items
+
+
+
 def format_next(s: Session) -> str:
     return f"Ближайшее занятие: {s.start.strftime('%d.%m.%Y')} — {s.end.strftime('%d.%m.%Y')}"
 

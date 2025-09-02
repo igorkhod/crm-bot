@@ -18,8 +18,14 @@ from aiogram.types import Message, CallbackQuery
 
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
 from crm2.keyboards import role_kb  # используется в show_schedule при отсутствии элементов
+from crm2.keyboards import schedule_root_kb
 
 router = Router(name="info")
+
+@router.message(F.text == "📅 Расписание")
+async def show_schedule_menu(message: Message):
+    """Корневое подменю расписания."""
+    await message.answer("Выберите, что показать:", reply_markup=schedule_root_kb())
 
 
 def _get(obj, key):
@@ -61,14 +67,12 @@ def _build_details_kb(items) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@router.message(F.text == "📅 Расписание")
-async def show_schedule(message: Message):
-    """Список занятий: даты + индекс в скобках; кнопки — даты + индекс."""
+async def _show_schedule_list(message: Message):
+    """Вспомогательная печать списка (используется при необходимости)."""
     items = upcoming(message.from_user.id, limit=100)
     if not items:
         await message.answer("Расписание занятий:\n• ближайших занятий пока нет.", reply_markup=role_kb("user"))
         return
-
     lines = ["Расписание занятий:"]
     for it in items:
         start = _get(it, "start")
@@ -76,7 +80,6 @@ async def show_schedule(message: Message):
         code = _code(it)
         code_txt = f" ({code})" if code else ""
         lines.append(f"• {_fmt_date(start)} — {_fmt_date(end)}{code_txt}")
-
     await message.answer("\n".join(lines), reply_markup=_build_details_kb(items))
 
 
@@ -260,3 +263,32 @@ async def back_to_main_from_project(message: Message):
         await message.answer("Главное меню:", reply_markup=guest_start_kb())
     else:
         await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
+
+
+from crm2.services import schedule as sch
+
+@router.callback_query(F.data == "sch:events")
+async def on_events(cb: CallbackQuery):
+    await cb.answer()
+    await cb.message.answer("Мероприятия пока не запланированы.")
+
+@router.callback_query(F.data == "sch:all")
+async def on_all(cb: CallbackQuery):
+    await cb.answer()
+    items = sch.list_all(limit=50)
+    if not items:
+        await cb.message.answer("Расписание всех событий:\n• пока нет будущих дат.")
+        return
+    lines = [f"• {s.start:%d.%m.%Y} — {s.end:%d.%m.%Y} ({s.code or s.title})" for s in items]
+    await cb.message.answer("Расписание всех событий:\n" + "\n".join(lines))
+
+@router.callback_query(F.data.startswith("sch:cohort:"))
+async def on_cohort(cb: CallbackQuery):
+    await cb.answer()
+    cohort_id = int(cb.data.split(":")[-1])
+    items = sch.list_for_cohort(cohort_id, limit=50)
+    if not items:
+        await cb.message.answer(f"Расписание потока {cohort_id}:\n• пока нет будущих дат.")
+        return
+    lines = [f"• {s.start:%d.%m.%Y} — {s.end:%d.%m.%Y} ({s.code or s.title})" for s in items]
+    await cb.message.answer(f"Расписание потока {cohort_id}:\n" + "\n".join(lines))
