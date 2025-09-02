@@ -83,3 +83,11 @@ async def reg_email(message: Message, state: FSMContext):
 
     await state.clear()
     await message.answer("✅ Регистрация завершена. Добро пожаловать в систему!")
+
+
+@router.message(F.text.contains("Зарегистрироваться"))
+async def start_registration_msg(message: Message, state: FSMContext):
+    """Старт регистрации из reply-кнопки «Зарегистрироваться»."""
+    await state.clear()
+    await state.set_state(RegistrationFSM.full_name)
+    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())

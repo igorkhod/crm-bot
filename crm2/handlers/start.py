@@ -9,29 +9,28 @@ from __future__ import annotations
 
 from aiogram import Router, F
 from aiogram.types import Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
 from crm2.db.users import get_user_by_tg
-from crm2.handlers.registration import REG_START  # <-- единый ключ
 from crm2.keyboards.main_menu import main_menu_kb
+from crm2.keyboards import guest_start_kb
 
 router = Router()
 
 
-def guest_menu_kb() -> InlineKeyboardBuilder:
-    kb = InlineKeyboardBuilder()
-    kb.button(text="🔐 Войти", callback_data="login:start")
-    kb.button(text="📝 Зарегистрироваться", callback_data=REG_START)  # <-- единый ключ
-    kb.button(text="📄 О проекте", callback_data="about:project")
-    kb.adjust(2, 1)
-    return kb
+
+# def guest_menu_kb() -> InlineKeyboardBuilder:
+#     kb = InlineKeyboardBuilder()
+#     kb.button(text="🔐 Войти", callback_data="login:start")
+#     kb.button(text="📝 Зарегистрироваться", callback_data=REG_START)  # <-- единый ключ
+#     kb.button(text="📄 О проекте", callback_data="about:project")
+#     kb.adjust(2, 1)
+#     return kb
 
 
 @router.message(F.text == "/start")
 async def cmd_start(message: Message) -> None:
-    """Разводим новых и существующих пользователей:
-       - новые → гостевое меню
-       - зарегистрированные → сразу в главное меню."""
+    # """Разводим новых и существующих пользователей:
+    #    - новые → гостевое меню
+    #    - зарегистрированные → сразу в главное меню."""
     tg_id = message.from_user.id
     user = get_user_by_tg(tg_id)
 
@@ -47,4 +46,4 @@ async def cmd_start(message: Message) -> None:
         "Ниже — важные шаги для запуска.\n\n"
         "Вы гость. Выберите действие:"
     )
-    await message.answer(text, reply_markup=guest_menu_kb().as_markup())
+    await message.answer(text, reply_markup=guest_start_kb())
