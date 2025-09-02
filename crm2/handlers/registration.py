@@ -9,6 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from crm2.keyboards import guest_start_kb
 from crm2.db.users import get_user_by_nickname, upsert_user
+from crm2.db.users import get_user_by_tg
 
 router = Router(name="registration")
 
@@ -204,3 +205,35 @@ async def on_save(cb: CallbackQuery, state: FSMContext):
     await state.clear()
     await cb.message.answer("✅ Данные сохранены. Теперь можно войти через «Войти».", reply_markup=guest_start_kb())
     await cb.answer("Сохранено")
+
+
+# ...оставшийся код регистрации (FSM, _show_review и т.д.)
+
+@router.callback_query(F.data == "reg:review")
+async def reg_open_review(cb: CallbackQuery, state: FSMContext):
+    """Открыть карточку регистрации со сводкой полей из БД."""
+    u = get_user_by_tg(cb.from_user.id) or {}
+    # заполняем FSM текущими значениями (никаких новых полей)
+    await state.update_data(
+        nickname=(u.get("nickname") or "").strip(),
+        password=(u.get("password") or "").strip(),  # может быть хэш — показываем как «••••»
+        full_name=u.get("full_name") or "",
+        phone=u.get("phone") or "",
+        email=u.get("email") or "",
+    )
+    await _show_review(cb.message, state)
+    await cb.answer()
+
+# (опционально, чтобы работать и по текстовой кнопке,
+# если ты потом добавишь её в reply-клавиатуру гости)
+@router.message(F.text.contains("Исправить") & F.text.contains("регистрац"))
+async def reg_open_review_text(message: Message, state: FSMContext):
+    u = get_user_by_tg(message.from_user.id) or {}
+    await state.update_data(
+        nickname=(u.get("nickname") or "").strip(),
+        password=(u.get("password") or "").strip(),
+        full_name=u.get("full_name") or "",
+        phone=u.get("phone") or "",
+        email=u.get("email") or "",
+    )
+    await _show_review(message, state)

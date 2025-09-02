@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from aiogram import Router, F
 from aiogram.types import Message
-from crm2.db.users import get_user_by_tg
-from crm2.keyboards.main_menu import main_menu_kb
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from crm2.keyboards import guest_start_kb
+from crm2.db.users import get_user_by_tg  # можно оставить, но больше не используем для ветвления
+
 
 router = Router()
 
@@ -27,22 +29,15 @@ def _profile_complete(u: dict | None) -> bool:
 
 @router.message(F.text == "/start")
 async def cmd_start(message: Message) -> None:
-    tg_id = message.from_user.id
-    user = get_user_by_tg(tg_id)
-  # В главное меню пускаем ТОЛЬКО при полном профиле
-    if _profile_complete(user):
-        await message.answer(
-            "Главное меню (ваша роль: {role})".format(role=user.get("role", "user")),
-            reply_markup = main_menu_kb(),
-        )
-
-        return
-
-    text = (
+    """/start всегда ведёт в гостевой режим: вход или регистрация."""
+    # над меню — инлайн-кнопка «Исправить регистрацию»
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🧰 Исправить регистрацию", callback_data="reg:review")
+    await message.answer(
         "Добро пожаловать в Psytech! 🧭 Здесь начинается путь из дисциплины в свободу.\n"
         "Ниже — важные шаги для запуска.\n\n"
-        "У вас не завершена регистрация или вы не вошли в систему.\n"
-        "Вы гость. Выберите действие:"
-
+        "Если допустили ошибку при регистрации — исправьте её:",
+        reply_markup=kb.as_markup(),
     )
-    await message.answer(text, reply_markup=guest_start_kb())
+    # само гостевое меню — reply-клавиатура
+    await message.answer("Выберите действие:", reply_markup=guest_start_kb())
