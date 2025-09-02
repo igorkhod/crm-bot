@@ -11,7 +11,7 @@
 from __future__ import annotations  # ← это должно быть первым код-оператором
 
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 # ... остальные стандартные импорты ...
 from crm2.keyboards import role_kb  # ← этот импорт переносим НИЖЕ
 import asyncio
@@ -160,6 +160,12 @@ async def login_nickname(message: Message, state: FSMContext) -> None:
     await state.update_data(nickname=_normalize(message.text or ""))
     await state.set_state(LoginSG.password)
     await message.answer("Введите пароль:")
+
+
+@router.callback_query(F.data == "login:start")
+async def login_from_inline(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
+    await cmd_login(cb.message, state)
 
 
 @router.message(LoginSG.password)
