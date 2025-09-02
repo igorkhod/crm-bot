@@ -35,7 +35,10 @@ from typing import Iterable, Optional, Dict, List, Tuple
 
 from openpyxl import load_workbook
 
-from crm2.services.users import get_user_by_telegram
+from crm2.services.users import get_user_by_telegram, get_user_cohort_id_by_tg
+from crm2.db.core import get_db_connection
+import sqlite3
+
 
 # Где лежат файлы расписаний
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -191,31 +194,68 @@ def load_all() -> Dict[int, List[Session]]:
     возвращает {cohort_id: [Session, ...]}.
     """
     result: Dict[int, List[Session]] = {}
+    has_files = False
     for path in DATA_DIR.glob("расписание *.xlsx"):
+        has_files = True
         cohort_id = _cohort_id_from_filename(path)
         if not cohort_id:
-            # если не удалось достать id потока — пропустим файл
             continue
         result[cohort_id] = _load_one_file(path)
+    if has_files:
+        return result
+    # --- Fallback: берём из БД таблицу sessions (если xlsx отсутствуют) ---
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute("""
+            SELECT id, start_date, COALESCE(end_date, start_date) AS end_date,
+                   COALESCE(topic_code,'') AS topic_code,
+                   COALESCE(title,'')      AS title,
+                   COALESCE(annotation,'') AS annotation,
+                   cohort_id
+            FROM sessions
+            ORDER BY start_date ASC, id ASC
+        """)
+        rows = cur.fetchall()
+    for r in rows:
+        try:
+            s = Session(
+                start = datetime.fromisoformat(r["start_date"]).date(),
+                end = datetime.fromisoformat(r["end_date"]).date(),
+                code = str(r["topic_code"] or ""),
+                title = str(r["title"] or ""),
+                annotation = str(r["annotation"] or ""),
+            )
+        except Exception:
+            continue
+        cid = int(r["cohort_id"]) if r["cohort_id"] is not None else -1
+        result.setdefault(cid, []).append(s)
+    for v in result.values():
+        v.sort(key=lambda s: (s.start, s.end))
     return result
 
-
 def get_user_cohort_id(telegram_id: int) -> Optional[int]:
+    # Сначала пробуем явный cohort_id в users
     u = get_user_by_telegram(telegram_id)
-    return u["cohort_id"] if u and u.get("cohort_id") else None
+    if u and u.get("cohort_id"):
+        return u["cohort_id"]
+    # Совместимость: если поток хранится в participants — берём оттуда
+    return get_user_cohort_id_by_tg(telegram_id)
 
 
 def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
-    """Ближайшие (не прошедшие) сессии для пользователя по его потоку."""
+    """Ближайшие (не прошедшие) занятия.
+    Если у пользователя не задан cohort_id — показываем ближайшие по всем потокам."""
     cohort_id = get_user_cohort_id(telegram_id)
-    if not cohort_id:
-        return []
-
     today = date.today()
     all_by_cohort = load_all()
-    sessions = all_by_cohort.get(cohort_id, [])
-    return [s for s in sessions if s.end >= today][:limit]
 
+    if cohort_id is not None and cohort_id in all_by_cohort:
+        pool = all_by_cohort[cohort_id]
+    else:
+        # без потока — берём всё
+        pool = [s for items in all_by_cohort.values() for s in items]
+
+    return [s for s in pool if s.end >= today][:limit]
 
 def format_next(s: Session) -> str:
     return f"Ближайшее занятие: {s.start.strftime('%d.%m.%Y')} — {s.end.strftime('%d.%m.%Y')}"
