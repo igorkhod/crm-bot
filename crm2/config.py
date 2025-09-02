@@ -46,5 +46,12 @@ def get_settings() -> Settings:
     # используем глобальную константу DB_PATH
 
     return Settings(token, admin_id, log_level, DB_PATH)
+    # используем глобальную константу DB_PATH
+    return Settings(
+        TELEGRAM_TOKEN=token,
+        ADMIN_ID=admin_id,
+        LOG_LEVEL=log_level,
+        DB_PATH=DB_PATH,
+    )
 
 __all__ = ["get_settings", "Settings", "DB_PATH", "DEFAULT_DB", "BASE_DIR"]

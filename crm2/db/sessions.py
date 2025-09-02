@@ -333,12 +333,16 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
             topic_col = _pick(cols, ["topic_code", "code", "topic"])
             title_col = _pick(cols, ["title", "name"])
             ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
+            select_cols = [
+                f"{id_col} AS id",
+                f"{start_col} AS start_date",
+                f"{(end_col or start_col)} AS end_date",
+                (f"{topic_col} AS topic_code" if topic_col else "NULL AS topic_code"),
+                (f"{title_col} AS title" if title_col else "NULL AS title"),
+                (f"{ann_col} AS annotation" if ann_col else "'' AS annotation"),
+            ]
+            sql = f"SELECT {', '.join(select_cols)} FROM sessions WHERE {id_col}=? LIMIT 1"
 
-            sql = f"SELECT {id_col} AS id, {start_col} AS start_date, {end_col or start_col} AS end_date, " \
-                  f"{(topic_col + ' AS topic_code') if topic_col else 'NULL AS topic_code'}, " \
-                  f"{(title_col + ' AS title') if title_col else 'NULL AS title'}, " \
-                  f"{(ann_col + ' AS annotation') if ann_col else "'' AS annotation"} " \
-                  f"FROM sessions WHERE {id_col}=? LIMIT 1"
             row = con.execute(sql, (session_id,)).fetchone()
             if row:
                 return dict(row)
@@ -349,11 +353,15 @@ def get_session_by_id(session_id: int) -> Optional[Dict[str, Any]]:
             date_col = _pick(cols, ["date", "event_date", "start", "start_date"]) or "date"
             title_col = _pick(cols, ["title", "name"])
             ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
-
-            sql = f"SELECT {id_col} AS id, {date_col} AS start_date, {date_col} AS end_date, " \
-                  f"{(title_col + ' AS title') if title_col else 'NULL AS title'}, " \
-                  f"{(ann_col + ' AS annotation') if ann_col else "'' AS annotation"}, " \
-                  f"NULL AS topic_code FROM events WHERE {id_col}=? LIMIT 1"
+            select_cols = [
+                f"{id_col} AS id",
+                f"{date_col} AS start_date",
+                f"{date_col} AS end_date",
+                (f"{title_col} AS title" if title_col else "NULL AS title"),
+                (f"{ann_col} AS annotation" if ann_col else "'' AS annotation"),
+                "NULL AS topic_code",
+            ]
+            sql = f"SELECT {', '.join(select_cols)} FROM events WHERE {id_col}=? LIMIT 1"
             row = con.execute(sql, (session_id,)).fetchone()
             if row:
                 return dict(row)
