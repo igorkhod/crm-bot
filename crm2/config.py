@@ -30,11 +30,14 @@ DB_PATH: Final[str] = os.getenv("CRM_DB") or DEFAULT_DB
 
 # Глобальная точка правды для путя к БД (нужна модулям, которые делают `from crm2.config import DB_PATH`)
 
-@dataclass(frozen=True)
+
+@ dataclass(frozen=True)
 class Settings:
     TELEGRAM_TOKEN: str
     ADMIN_ID: int | None
     LOG_LEVEL: str
+    DB_PATH: str
+
 
 def get_settings() -> Settings:
     token = os.getenv("TELEGRAM_TOKEN")
@@ -43,9 +46,6 @@ def get_settings() -> Settings:
     admin_raw = (os.getenv("ADMIN_ID") or "").strip()
     admin_id = int(admin_raw) if admin_raw.isdigit() else None
     log_level = (os.getenv("LOG_LEVEL") or "INFO").upper()
-    # используем глобальную константу DB_PATH
-
-    return Settings(token, admin_id, log_level, DB_PATH)
     # используем глобальную константу DB_PATH
     return Settings(
         TELEGRAM_TOKEN=token,

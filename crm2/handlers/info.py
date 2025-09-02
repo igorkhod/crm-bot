@@ -17,6 +17,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import Message, CallbackQuery
 
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
+from crm2.keyboards import role_kb  # используется в show_schedule при отсутствии элементов
 
 router = Router(name="info")
 
