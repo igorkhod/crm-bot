@@ -80,7 +80,7 @@ def _select_from_session_days(con: sqlite3.Connection, *, cohort_id: Optional[in
     cols = _cols(con, "session_days")
     id_col = "id"
     day_col = _pick(cols, ["day", "date", "day_date", "session_day"]) or "date"
-    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "stream_id"])
     topic_code_col = _pick(cols, ["topic_code", "code"])
     topic_id_col = _pick(cols, ["topic_id"])
 
@@ -222,7 +222,7 @@ def _select_from_sessions(con: sqlite3.Connection, *, cohort_id: Optional[int], 
     topic_col = _pick(cols, ["topic_code", "code", "topic"])
     title_col = _pick(cols, ["title", "name"])
     ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
-    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "stream_id"])
 
     if start_col is None:
         raise RuntimeError("Table 'sessions' has no start_date/start/date column")
@@ -257,7 +257,7 @@ def _select_from_events(con: sqlite3.Connection, *, cohort_id: Optional[int], li
     date_col = _pick(cols, ["date", "event_date", "start", "start_date"]) or "date"
     title_col = _pick(cols, ["title", "name"])
     ann_col = _pick(cols, ["annotation", "ann", "description", "desc"])
-    cohort_col = _pick(cols, ["cohort_id", "cohort_id"])
+    cohort_col = _pick(cols, ["cohort_id", "stream_id"])
 
     where = f"date({date_col}) >= date('now')"
     params: List[Any] = []
@@ -287,6 +287,8 @@ def _select_from_events(con: sqlite3.Connection, *, cohort_id: Optional[int], li
 def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> List[Dict[str, Any]]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
+
+        # определяем поток пользователя (если нужно фильтровать)
         cohort_id = None
         if tg_id is not None:
             row = con.execute(
@@ -294,30 +296,37 @@ def get_upcoming_sessions(*, limit: int = 5, tg_id: Optional[int] = None) -> Lis
                 WITH u AS (SELECT id, cohort_id
                            FROM users
                            WHERE telegram_id = ?
-                    LIMIT 1
-                    )
-                   , p AS (
-                SELECT cohort_id
-                FROM participants
-                WHERE user_id=(SELECT id FROM u LIMIT 1)
-                ORDER BY id DESC
-                    LIMIT 1
-                    )
+                           LIMIT 1),
+                     p AS (SELECT cohort_id
+                           FROM participants
+                           WHERE user_id=(SELECT id FROM u LIMIT 1)
+                           ORDER BY id DESC
+                           LIMIT 1)
                 SELECT COALESCE(p.cohort_id, u.cohort_id) AS cohort_id
-                FROM u
-                         LEFT JOIN p ON 1 = 1
+                FROM u LEFT JOIN p ON 1=1
                 """,
                 (tg_id,),
             ).fetchone()
             if row and row["cohort_id"] not in (None, ""):
                 cohort_id = int(row["cohort_id"])
 
+        # 1) sessions → 2) events → 3) session_days
+        # пробуем по очереди и возвращаем первый непустой набор
         if _table_exists(con, "sessions"):
-            return _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_sessions(con, cohort_id=cohort_id, limit=limit)
+            if rows:
+                return rows
+
         if _table_exists(con, "events"):
-            return _select_from_events(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_events(con, cohort_id=cohort_id, limit=limit)
+            if rows:
+                return rows
+
         if _table_exists(con, "session_days"):
-            return _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
+            rows = _select_from_session_days(con, cohort_id=cohort_id, limit=limit)
+            if rows:
+                return rows
+
         return []
 
 

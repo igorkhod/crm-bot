@@ -34,10 +34,11 @@ from pathlib import Path
 from typing import Iterable, Optional, Dict, List, Tuple
 
 from openpyxl import load_workbook
-
 from crm2.services.users import get_user_by_telegram, get_user_cohort_id_by_tg
 from crm2.db.core import get_db_connection
+from crm2.db.sessions import get_upcoming_sessions  # ← уже готовая логика
 import sqlite3
+
 
 
 # Где лежат файлы расписаний
@@ -243,19 +244,35 @@ def get_user_cohort_id(telegram_id: int) -> Optional[int]:
 
 
 def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
-    """Ближайшие (не прошедшие) занятия.
-    Если у пользователя не задан cohort_id — показываем ближайшие по всем потокам."""
+    """Ближайшие занятия для пользователя (унифицировано: sessions / events / session_days)."""
+    # 1) Пытаемся взять напрямую из БД через готовый репозиторий
+    rows = get_upcoming_sessions(limit=limit, tg_id=telegram_id)
+    if rows:
+        def _to_date(s: str) -> date:
+            return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
+        items: List[Session] = []
+        for r in rows:
+            try:
+                items.append(
+                    Session(
+                        start=_to_date(r["start_date"]),
+                        end=_to_date(r["end_date"]),
+                        code=str(r.get("topic_code") or ""),
+                        title=str(r.get("title") or ""),
+                        annotation=str(r.get("annotation") or ""),
+                    )
+                )
+            except Exception:
+                continue
+        if items:
+            return items[:limit]
+    # 2) Fallback: по-прежнему пробуем XLSX/«расписание *.xlsx» (и sessions, если они есть)
     cohort_id = get_user_cohort_id(telegram_id)
     today = date.today()
     all_by_cohort = load_all()
-
-    if cohort_id is not None and cohort_id in all_by_cohort:
-        pool = all_by_cohort[cohort_id]
-    else:
-        # без потока — берём всё
-        pool = [s for items in all_by_cohort.values() for s in items]
-
+    pool = all_by_cohort.get(cohort_id, []) if (cohort_id in all_by_cohort) else [s for v in all_by_cohort.values() for s in v]
     return [s for s in pool if s.end >= today][:limit]
+
 
 def format_next(s: Session) -> str:
     return f"Ближайшее занятие: {s.start.strftime('%d.%m.%Y')} — {s.end.strftime('%d.%m.%Y')}"
