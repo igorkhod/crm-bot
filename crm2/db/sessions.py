@@ -6,8 +6,34 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from .core import get_db_connection
+from typing import Optional, Dict, Any
+from crm2.db.core import get_db_connection
 
+
+def get_session_detail_by_cohort_and_date(cohort_id: int, date_iso: str) -> Optional[Dict[str, Any]]:
+    """Возвращает одну запись по потоку и дате (из session_days + topics)."""
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        if not _table_exists(con, "session_days"):
+            return None
+        cols = _cols(con, "session_days")
+        cohort_col = _pick(cols, ["cohort_id", "stream_id"])  # ← принимаем stream_id
+        sql = f"""
+            SELECT
+                sd.id AS id,
+                sd.date AS start_date,
+                sd.date AS end_date,
+                sd.topic_code AS topic_code,
+                COALESCE(t.title, '')      AS title,
+                COALESCE(t.annotation, '') AS annotation
+            FROM session_days sd
+            LEFT JOIN topics t
+                   ON (t.id = sd.topic_id) OR (t.code = sd.topic_code)
+            WHERE sd.date = ? AND {cohort_col} = ?
+            LIMIT 1
+        """
+        row = con.execute(sql, (date_iso, cohort_id)).fetchone()
+        return dict(row) if row else None
 
 def _table_exists(con: sqlite3.Connection, name: str) -> bool:
     cur = con.execute(

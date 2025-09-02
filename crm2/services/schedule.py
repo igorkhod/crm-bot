@@ -39,6 +39,10 @@ from crm2.db.core import get_db_connection
 from crm2.db.sessions import get_upcoming_sessions  # ← уже готовая логика
 import sqlite3
 
+from crm2.db.sessions import (
+    get_upcoming_sessions_by_cohort,   # если добавлял ранее
+    get_session_detail_by_cohort_and_date,
+)
 
 
 # Где лежат файлы расписаний
@@ -276,9 +280,25 @@ def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
 
 from crm2.db.sessions import get_upcoming_sessions_by_cohort
 
-def list_for_cohort(cohort_id: int, *, limit: int = 50) -> list[Session]:
+def list_for_cohort(cohort_id: int, *, limit: int = 5) -> list[Session]:
     rows = get_upcoming_sessions_by_cohort(cohort_id, limit=limit)
     return _rows_to_sessions(rows)[:limit]
+
+
+def detail_for_cohort_date(cohort_id: int, date_iso: str) -> Optional[Session]:
+    r = get_session_detail_by_cohort_and_date(cohort_id, date_iso)
+    if not r:
+        return None
+    d = datetime.strptime(r["start_date"], "%Y-%m-%d").date()
+    return Session(
+        start=d,
+        end=d,
+        code=str(r.get("topic_code") or ""),
+        title=str(r.get("title") or ""),
+        annotation=str(r.get("annotation") or ""),
+    )
+
+
 
 def list_all(*, limit: int = 50) -> list[Session]:
     rows = get_upcoming_sessions_by_cohort(None, limit=limit)  # без фильтра потока

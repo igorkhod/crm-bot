@@ -8,6 +8,7 @@
 from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup
 
 
 def schedule_root_kb() -> "InlineKeyboardMarkup":
@@ -19,6 +20,17 @@ def schedule_root_kb() -> "InlineKeyboardMarkup":
     kb.adjust(2, 2)
     return kb.as_markup()
 
+
+def schedule_dates_kb(cohort_id: int, sessions) -> InlineKeyboardMarkup:
+    """Макс. 5 кнопок: каждая — дата/диапазон, callback с датой начала."""
+    kb = InlineKeyboardBuilder()
+    for s in (sessions or [])[:5]:
+        left = s.start.strftime("%d.%m.%Y")
+        right = s.end.strftime("%d.%m.%Y") if s.end != s.start else None
+        label = f"{left} — {right} · {s.code or s.title}" if right else f"{left} · {s.code or s.title}"
+        kb.button(text=label, callback_data=f"sch:cohort:{cohort_id}:{s.start.isoformat()}")
+    kb.adjust(1)
+    return kb.as_markup()
 
 def _fmt_date(d):
     if isinstance(d, str):

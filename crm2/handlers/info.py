@@ -17,14 +17,13 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import Message, CallbackQuery
 
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
-from crm2.keyboards import role_kb  # используется в show_schedule при отсутствии элементов
-from crm2.keyboards import schedule_root_kb
+from crm2.keyboards import schedule_root_kb, role_kb, schedule_dates_kb
+from crm2.services import schedule as sch
 
 router = Router(name="info")
 
 @router.message(F.text == "📅 Расписание")
 async def show_schedule_menu(message: Message):
-    """Корневое подменю расписания."""
     await message.answer("Выберите, что показать:", reply_markup=schedule_root_kb())
 
 
@@ -284,11 +283,33 @@ async def on_all(cb: CallbackQuery):
 
 @router.callback_query(F.data.startswith("sch:cohort:"))
 async def on_cohort(cb: CallbackQuery):
-    await cb.answer()
-    cohort_id = int(cb.data.split(":")[-1])
-    items = sch.list_for_cohort(cohort_id, limit=50)
-    if not items:
-        await cb.message.answer(f"Расписание потока {cohort_id}:\n• пока нет будущих дат.")
+    parts = cb.data.split(":")
+    # форматы: "sch:cohort:2"  или  "sch:cohort:2:2025-09-13"
+    if len(parts) == 3:
+        # Показать даты для потока
+        cohort_id = int(parts[2])
+        items = sch.list_for_cohort(cohort_id, limit=5)
+        if not items:
+            await cb.message.answer(f"Расписание потока {cohort_id}:\n• пока нет будущих дат.")
+            await cb.answer()
+            return
+        await cb.message.answer(f"Поток {cohort_id}: выберите дату:", reply_markup=schedule_dates_kb(cohort_id, items))
+        await cb.answer()
         return
-    lines = [f"• {s.start:%d.%m.%Y} — {s.end:%d.%m.%Y} ({s.code or s.title})" for s in items]
-    await cb.message.answer(f"Расписание потока {cohort_id}:\n" + "\n".join(lines))
+
+    if len(parts) == 4:
+        cohort_id = int(parts[2]);
+        date_iso = parts[3]
+        # 1) поднимаем меню (шлём новый месседж с меню)
+        await cb.message.answer("Выберите, что показать:", reply_markup=schedule_root_kb())
+        # 2) деталь занятия
+        s = sch.detail_for_cohort_date(cohort_id, date_iso)
+        if not s:
+            await cb.message.answer("Запись не найдена или нет описания.")
+            await cb.answer()
+            return
+        span = s.start.strftime("%d.%m.%Y") if s.end == s.start else f"{s.start:%d.%m.%Y} — {s.end:%d.%m.%Y}"
+        title = s.title or s.code or "Без названия"
+        body = f"🗓 {span}\nТема: {title}\n\n{s.annotation}".strip()
+        await cb.message.answer(body)
+        await cb.answer()
