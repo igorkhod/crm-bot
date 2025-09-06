@@ -1,5 +1,6 @@
+#
 #!/usr/bin/env python3
-# C:\Users\user\PycharmProjects\crm\scripts
+# C:\Users\user\PycharmProjects\crm\scripts\update_project_map.py
 """
 scripts/update_project_map.py — автообновление PROJECT_MAP.full.md
 
