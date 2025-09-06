@@ -1,4 +1,4 @@
-name: Deploy to VPS (scp + ssh)
+name: Deploy Psytech Bot
 
 on:
   push:
@@ -7,35 +7,48 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # 1) Код
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Диагностика: что реально лежит в репо
-      - name: List workspace files (debug)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 2) Автообновление PROJECT_MAP.full.md (зависимостей не нужно)
+      - name: Update PROJECT_MAP.full.md
         run: |
-          echo "PWD=$(pwd)"
-          echo "--- top level ---"
-          ls -la
-          echo "--- 2 levels ---"
-          find . -maxdepth 2 -type f -print
+          python scripts/update_project_map.py
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add crm2/PROJECT_MAP.full.md
+          git commit -m "chore: auto-update PROJECT_MAP.full.md" || echo "No changes"
+          git push
 
-      # Копируем ВСЁ (вкл. dot-файлы и .github)
-      - name: Upload app via SCP
+      # 3) Упаковываем репозиторий в tar.gz (без .git)
+      - name: Make tarball (git archive)
+        run: |
+          git archive --format=tar.gz -o app.tgz HEAD
+          ls -lh app.tgz
+
+      # 4) Копируем архив на VPS
+      - name: Upload tarball via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: |
-            **/*
-            .**/*
-          target: /opt/psytech-bot/app
-          overwrite: true
-          rm: true
+          source: app.tgz
+          target: /opt/psytech-bot/
 
-      - name: Install deps & restart service (SSH)
+      # 5) Распаковываем, ставим зависимости, перезапускаем сервис
+      - name: Extract & restart (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -43,11 +56,24 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
-            cd /opt/psytech-bot/app
-            if [ -f requirements.txt ]; then
-              /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+            set -e
+            cd /opt/psytech-bot
+            mkdir -p app
+            tar xzf app.tgz -C app
+            rm -f app.tgz
+
+            # найдём requirements в одном из распространённых мест
+            REQ=""
+            for CAND in app/requirements.txt app/crm2/requirements.txt app/crm2/app/requirements.txt app/*/requirements.txt app/**/requirements.txt; do
+              [ -f "$CAND" ] && { REQ="$CAND"; break; }
+            done
+            if [ -n "$REQ" ]; then
+              echo "Using requirements: $REQ"
+              /opt/psytech-bot/venv/bin/pip install -r "$REQ"
             else
-              echo "⚠️ requirements.txt не найден — пропускаю установку"
+              echo "⚠️ requirements.txt не найден — пропускаю установку зависимостей"
             fi
-            sudo systemctl restart psytech-bot.service
-            sudo systemctl is-active --quiet psytech-bot.service && echo "✅ Bot running"
+
+            sudo -n systemctl restart psytech-bot.service
+            sudo -n systemctl is-active --quiet psytech-bot.service && echo "✅ Bot running"
+            journalctl -u psytech-bot -n 40 --no-pager || true
