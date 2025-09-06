@@ -20,9 +20,10 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           source: |
-            ./*
-            ./.env.example
-            ./requirements.txt
+            crm2/**
+            requirements.txt
+            PROJECT_MAP.md
+            .env.example
           target: /opt/psytech-bot/app
           overwrite: true
           rm: true
