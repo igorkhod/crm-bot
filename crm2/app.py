@@ -11,9 +11,9 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import os
-import importlib
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -94,6 +94,31 @@ async def main() -> None:
     )
     dp = Dispatcher()
 
+    # --- 🔔 старт/стоп-уведомления администратору ---
+    # Используем существующий ADMIN_ID (твои env уже содержат его).
+    # Флаги можно не задавать: по умолчанию уведомления включены.
+    ADMIN_ID = int(os.getenv("ADMIN_ID", "0") or 0)
+    NOTIFY_STARTUP = os.getenv("NOTIFY_STARTUP", "1") == "1"
+    NOTIFY_SHUTDOWN = os.getenv("NOTIFY_SHUTDOWN", "1") == "1"
+
+    async def _on_startup(bot: Bot):
+        if NOTIFY_STARTUP and ADMIN_ID:
+            try:
+                await bot.send_message(ADMIN_ID, "🚀 Бот запущен!")
+            except Exception as e:
+                print(f"[notify] startup failed: {e}")
+
+    async def _on_shutdown(bot: Bot):
+        if NOTIFY_SHUTDOWN and ADMIN_ID:
+            try:
+                await bot.send_message(ADMIN_ID, "⛔ Бот остановлен.")
+            except Exception as e:
+                print(f"[notify] shutdown failed: {e}")
+
+    dp.startup.register(_on_startup)
+    dp.shutdown.register(_on_shutdown)
+    # --- /🔔 ---
+
     # ───────────────────── ПОДКЛЮЧЕНИЕ РОУТЕРОВ ─────────────────────
     # 1) Узкие/системные
     dp.include_router(consent.router)
@@ -106,11 +131,11 @@ async def main() -> None:
     dp.include_router(admin_db_doctor_router.router)
 
     # 3) Остальные админ-подсекции (могут отсутствовать — подключаем мягко)
-    try_include(dp, "crm2.handlers.admin_users")       # если есть crm2/handlers/admin_users.py
-    try_include(dp, "crm2.handlers.admin_schedule")    # если есть crm2/handlers/admin_schedule.py
-    try_include(dp, "crm2.handlers.admin_logs")        # если есть crm2/handlers/admin_logs.py
-    try_include(dp, "crm2.handlers.admin_broadcast")   # если есть crm2/handlers/admin_broadcast.py
-    try_include(dp, "crm2.handlers.admin_db")          # команды /db_* (если модуль есть)
+    try_include(dp, "crm2.handlers.admin_users")  # если есть crm2/handlers/admin_users.py
+    try_include(dp, "crm2.handlers.admin_schedule")  # если есть crm2/handlers/admin_schedule.py
+    try_include(dp, "crm2.handlers.admin_logs")  # если есть crm2/handlers/admin_logs.py
+    try_include(dp, "crm2.handlers.admin_broadcast")  # если есть crm2/handlers/admin_broadcast.py
+    try_include(dp, "crm2.handlers.admin_db")  # команды /db_* (если модуль есть)
 
     # 4) Пользовательские разделы
     dp.include_router(info.router)
@@ -121,14 +146,14 @@ async def main() -> None:
 
     # Если где-то есть общий роутер расписания типа crm2/handlers_schedule.py с router,
     # можно мягко подключить и его:
-    try_include(dp, "crm2.handlers_schedule")          # подключится только если есть attr "router"
+    try_include(dp, "crm2.handlers_schedule")  # подключится только если есть attr "router"
 
     # ───────────────────────────── ЗАПУСК ───────────────────────────
-    if ADMIN_ID:
-        try:
-            await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен!")
-        except Exception as e:
-            logging.warning(f"ADMIN notify failed: {e}")
+    # if ADMIN_ID:
+    #     try:
+    #         await bot.send_message(int(ADMIN_ID), "🚀 Бот запущен!")
+    #     except Exception as e:
+    #         logging.warning(f"ADMIN notify failed: {e}")
 
     try:
         await dp.start_polling(
@@ -140,11 +165,6 @@ async def main() -> None:
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt — завершаем…")
     finally:
-        if ADMIN_ID:
-            try:
-                await bot.send_message(int(ADMIN_ID), "⛔ Бот остановлен.")
-            except Exception as e:
-                logging.error(f"Не удалось написать админу при остановке: {e}")
         await bot.session.close()
         logging.info("Сессия закрыта.")
 
