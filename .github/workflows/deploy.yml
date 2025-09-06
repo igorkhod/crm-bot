@@ -1,4 +1,4 @@
-name: Deploy to VPS
+name: Deploy to VPS (scp + ssh)
 
 on:
   push:
@@ -8,9 +8,28 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: SSH deploy
+      # 1) Заливаем код на VPS (в /opt/psytech-bot/app)
+      - name: Upload app via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: |
+            ./*
+            ./.env.example
+            ./requirements.txt
+          target: /opt/psytech-bot/app
+          overwrite: true
+          rm: true
+          strip_components: 0
+
+      # 2) На VPS: установить зависимости и рестарт сервиса
+      - name: Install deps & restart service (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -18,4 +37,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
-            BRANCH=main /opt/psytech-bot/deploy.sh
+            cd /opt/psytech-bot/app
+            /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+            sudo systemctl restart psytech-bot.service
+            sudo systemctl is-active --quiet psytech-bot.service && echo "✅ Bot running"
