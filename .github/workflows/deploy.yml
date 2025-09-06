@@ -2,32 +2,25 @@ name: Deploy Psytech Bot
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Забираем код из репо
+      # 1) Код
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. Ставим Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      # 3. Локальная установка зависимостей (чтобы работал update_project_map.py)
-      - name: Install dependencies
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r app/requirements.txt
-
-      # 4. Автообновление PROJECT_MAP.full.md
+      # 2) Автообновление PROJECT_MAP.full.md (зависимостей не нужно)
       - name: Update PROJECT_MAP.full.md
         run: |
           python scripts/update_project_map.py
@@ -37,27 +30,50 @@ jobs:
           git commit -m "chore: auto-update PROJECT_MAP.full.md" || echo "No changes"
           git push
 
-      # 5. Копируем проект на VPS
-      - name: Copy files to VPS
+      # 3) Упаковываем репозиторий в tar.gz (без .git)
+      - name: Make tarball (git archive)
+        run: |
+          git archive --format=tar.gz -o app.tgz HEAD
+          ls -lh app.tgz
+
+      # 4) Копируем архив на VPS
+      - name: Upload tarball via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          source: "./"
-          target: "/opt/psytech-bot/app"
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: app.tgz
+          target: /opt/psytech-bot/
 
-      # 6. Перезапускаем systemd-сервис на VPS
-      - name: Restart bot on VPS
+      # 5) Распаковываем, ставим зависимости, перезапускаем сервис
+      - name: Extract & restart (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
-            cd /opt/psytech-bot/app
-            /opt/psytech-bot/venv/bin/pip install -r app/requirements.txt
+            set -e
+            cd /opt/psytech-bot
+            mkdir -p app
+            tar xzf app.tgz -C app
+            rm -f app.tgz
+
+            # найдём requirements в одном из распространённых мест
+            REQ=""
+            for CAND in app/requirements.txt app/crm2/requirements.txt app/crm2/app/requirements.txt app/*/requirements.txt app/**/requirements.txt; do
+              [ -f "$CAND" ] && { REQ="$CAND"; break; }
+            done
+            if [ -n "$REQ" ]; then
+              echo "Using requirements: $REQ"
+              /opt/psytech-bot/venv/bin/pip install -r "$REQ"
+            else
+              echo "⚠️ requirements.txt не найден — пропускаю установку зависимостей"
+            fi
+
             sudo -n systemctl restart psytech-bot.service
-            sudo -n systemctl status psytech-bot.service --no-pager
+            sudo -n systemctl is-active --quiet psytech-bot.service && echo "✅ Bot running"
+            journalctl -u psytech-bot -n 40 --no-pager || true
