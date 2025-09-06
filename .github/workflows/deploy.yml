@@ -1,4 +1,4 @@
-name: Deploy to VPS (scp + ssh)
+name: Deploy to VPS (tar + scp + ssh)
 
 on:
   push:
@@ -10,32 +10,35 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # Диагностика: что реально лежит в репо
+      # Диагностика (чтобы видеть файлы в логе)
       - name: List workspace files (debug)
         run: |
           echo "PWD=$(pwd)"
-          echo "--- top level ---"
           ls -la
           echo "--- 2 levels ---"
           find . -maxdepth 2 -type f -print
 
-      # Копируем ВСЁ (вкл. dot-файлы и .github)
-      - name: Upload app via SCP
+      # 1) Упаковать весь репозиторий (кроме .git) в архив
+      - name: Make tarball
+        run: |
+          tar czf app.tgz --exclude-vcs .
+
+      # 2) Залить архив на сервер
+      - name: Upload tarball via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: |
-            **/*
-            .**/*
-          target: /opt/psytech-bot/app
-          overwrite: true
-          rm: true
+          source: app.tgz
+          target: /opt/psytech-bot/
 
-      - name: Install deps & restart service (SSH)
+      # 3) Распаковать и перезапустить сервис на сервере
+      - name: Extract & restart (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -43,9 +46,13 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
-            cd /opt/psytech-bot/app
-            if [ -f requirements.txt ]; then
-              /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+            set -e
+            cd /opt/psytech-bot
+            mkdir -p app
+            tar xzf app.tgz -C app
+            rm -f app.tgz
+            if [ -f app/requirements.txt ]; then
+              /opt/psytech-bot/venv/bin/pip install -r app/requirements.txt
             else
               echo "⚠️ requirements.txt не найден — пропускаю установку"
             fi
