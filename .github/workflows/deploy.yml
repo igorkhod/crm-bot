@@ -27,12 +27,13 @@ jobs:
       # 2) Автообновление PROJECT_MAP.full.md
       - name: Update PROJECT_MAP.full.md
         run: |
-          python scripts/update_project_map.py
+          set -e
+          python scripts/update_project_map.py || true
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add crm2/PROJECT_MAP.full.md
-          git commit -m "chore: auto-update PROJECT_MAP.full.md" || echo "No changes"
-          git push
+          git add crm2/PROJECT_MAP.full.md || true
+          git commit -m "chore: auto-update PROJECT_MAP.full.md" || true
+          git push || true
 
       # 3) Упаковываем репозиторий в tar.gz (без .git)
       - name: Make tarball (git archive)
