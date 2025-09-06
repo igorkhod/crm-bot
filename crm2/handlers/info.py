@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from aiogram import Router, F
+from aiogram.types import ReplyKeyboardRemove
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import Message, CallbackQuery
 
@@ -205,25 +206,6 @@ async def open_agents_instruction(message: Message):
     )
 
 
-@router.message(F.text == "↩️ Главное меню")
-async def back_to_main(message: Message):
-    from crm2.keyboards import role_kb, guest_start_kb
-    from crm2.db.sqlite import DB_PATH
-    import sqlite3
-
-    # Определяем роль из базы
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        cur = con.execute("SELECT role FROM users WHERE telegram_id=?", (message.from_user.id,))
-        row = cur.fetchone()
-        role = row["role"] if row else "curious"
-
-    if role in (None, "", "curious"):
-        await message.answer("Главное меню:", reply_markup=guest_start_kb())
-    else:
-        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
-
-
 # --- О проекте ---
 from crm2.keyboards.project import project_menu_kb
 from crm2.keyboards import role_kb, guest_start_kb
@@ -233,7 +215,28 @@ from crm2.db.sqlite import DB_PATH
 
 @router.message(F.text == "📖 О проекте")
 async def show_project_menu(message: Message):
+    import sqlite3
+    from aiogram.types import ReplyKeyboardRemove
+    from crm2.db.sqlite import DB_PATH
+
+    # Определяем роль
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        row = con.execute(
+            "SELECT role FROM users WHERE telegram_id = ? LIMIT 1",
+            (message.from_user.id,)
+        ).fetchone()
+        role = (row["role"] if row else None) or "guest"
+
+    # Для guest — НИКАКИХ кнопок (убираем клавиатуру полностью)
+    if role == "guest":
+        await message.answer("ℹ️ Информация о проекте:", reply_markup=ReplyKeyboardRemove())
+        # сюда можно вывести текст/разделы, но без кнопок «назад»
+        return
+
+    # user/admin — можно показать меню раздела
     await message.answer("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
+
 
 
 @router.message(F.text == "Как проводятся занятия")
@@ -253,15 +256,31 @@ async def how_sessions_go(message: Message):
 
 @router.message(F.text == "↩️ Главное меню")
 async def back_to_main_from_project(message: Message):
+    from aiogram.types import ReplyKeyboardRemove
+    import sqlite3
+    from crm2.db.sqlite import DB_PATH
+    from crm2.keyboards import role_kb, guest_start_kb
+
     with sqlite3.connect(DB_PATH) as con:
         con.row_factory = sqlite3.Row
-        row = con.execute("SELECT role FROM users WHERE telegram_id = ? LIMIT 1", (message.from_user.id,)).fetchone()
-        role = row["role"] if row else "curious"
+        row = con.execute(
+            "SELECT role FROM users WHERE telegram_id = ? LIMIT 1",
+            (message.from_user.id,)
+        ).fetchone()
+        role = (row["role"] if row else None) or "guest"
 
-    if role in (None, "", "curious"):
-        await message.answer("Главное меню:", reply_markup=guest_start_kb())
-    else:
-        await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
+    # Гость не может «выйти в главное меню» изнутри раздела — сообщаем и убираем клавиатуру
+    if role == "guest":
+        await message.answer(
+            "Для гостя доступна только информация «О проекте». "
+            "Войдите, чтобы видеть главное меню.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return
+
+    # user/admin — как раньше
+    await message.answer(f"Главное меню (ваша роль: {role})", reply_markup=role_kb(role))
+
 
 
 from crm2.services import schedule as sch
