@@ -22,10 +22,10 @@ jobs:
           find . -maxdepth 2 -type f -print
 
       # 1) Упаковать весь репозиторий (кроме .git) в архив
-      - name: Make tarball
+      - name: Make tarball (git archive)
         run: |
-          tar czf app.tgz --exclude-vcs .
-
+          git config tar.umask 0002
+          git archive --format=tar.gz -o app.tgz HEAD
       # 2) Залить архив на сервер
       - name: Upload tarball via SCP
         uses: appleboy/scp-action@v0.1.7
