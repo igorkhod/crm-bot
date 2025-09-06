@@ -11,7 +11,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 1) Заливаем код на VPS (в /opt/psytech-bot/app)
+      # Диагностика: что реально лежит в репо
+      - name: List workspace files (debug)
+        run: |
+          echo "PWD=$(pwd)"
+          echo "--- top level ---"
+          ls -la
+          echo "--- 2 levels ---"
+          find . -maxdepth 2 -type f -print
+
+      # Копируем ВСЁ (вкл. dot-файлы и .github)
       - name: Upload app via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -20,16 +29,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           source: |
-            crm2/**
-            requirements.txt
-            PROJECT_MAP.md
-            .env.example
+            **/*
+            .**/*
           target: /opt/psytech-bot/app
           overwrite: true
           rm: true
-          strip_components: 0
 
-      # 2) На VPS: установить зависимости и рестарт сервиса
       - name: Install deps & restart service (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -39,6 +44,10 @@ jobs:
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
           script: |
             cd /opt/psytech-bot/app
-            /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+            if [ -f requirements.txt ]; then
+              /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+            else
+              echo "⚠️ requirements.txt не найден — пропускаю установку"
+            fi
             sudo systemctl restart psytech-bot.service
             sudo systemctl is-active --quiet psytech-bot.service && echo "✅ Bot running"
