@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "main" ]
 
+# 👇 даём токену право писать содержимое репозитория
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -20,15 +24,16 @@ jobs:
         with:
           python-version: '3.12'
 
-      # 2) Автообновление PROJECT_MAP.full.md (зависимостей не нужно)
+      # 2) Автообновление PROJECT_MAP.full.md
       - name: Update PROJECT_MAP.full.md
         run: |
-          python scripts/update_project_map.py
+          set -e
+          python scripts/update_project_map.py || true
           git config --global user.name "github-actions"
           git config --global user.email "actions@github.com"
-          git add crm2/PROJECT_MAP.full.md
-          git commit -m "chore: auto-update PROJECT_MAP.full.md" || echo "No changes"
-          git push
+          git add crm2/PROJECT_MAP.full.md || true
+          git commit -m "chore: auto-update PROJECT_MAP.full.md" || true
+          git push || true
 
       # 3) Упаковываем репозиторий в tar.gz (без .git)
       - name: Make tarball (git archive)
@@ -62,7 +67,7 @@ jobs:
             tar xzf app.tgz -C app
             rm -f app.tgz
 
-            # найдём requirements в одном из распространённых мест
+            # найдём requirements.txt в известных местах
             REQ=""
             for CAND in app/requirements.txt app/crm2/requirements.txt app/crm2/app/requirements.txt app/*/requirements.txt app/**/requirements.txt; do
               [ -f "$CAND" ] && { REQ="$CAND"; break; }

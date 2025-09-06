@@ -1,172 +1,69 @@
-# PROJECT_MAP.full.md — Полная дорожная карта проекта Psytech CRM Bot
+# PROJECT_MAP.full.md — автогенерация
+> Обновлено: Sat Sep  6 11:59:26 UTC 2025
 
-> Версия: 2025-09-06 • Проект: Psytech (aiogram 3.x) • БД: SQLite (/var/data/crm.db) • Репозиторий: [igorkhod/crm](https://github.com/igorkhod/crm)
+## 📂 Структура файлов
+### handlers
+- `crm2/handlers/about.py`
+- `crm2/handlers/admin/broadcast.py`
+- `crm2/handlers/admin/logs.py`
+- `crm2/handlers/admin/panel.py`
+- `crm2/handlers/admin/schedule.py`
+- `crm2/handlers/admin/users.py`
+- `crm2/handlers/admin_db.py`
+- `crm2/handlers/admin_db_doctor.py`
+- `crm2/handlers/admin_users.py`
+- `crm2/handlers/attendance.py`
+- `crm2/handlers/auth.py`
+- `crm2/handlers/consent.py`
+- `crm2/handlers/help.py`
+- `crm2/handlers/info.py`
+- `crm2/handlers/profile.py`
+- `crm2/handlers/registration.py`
+- `crm2/handlers/start.py`
+- `crm2/handlers/welcome.py`
+### db
+- `crm2/db/__init__.py`
+- `crm2/db/attendance.py`
+- `crm2/db/auto_migrate.py`
+- `crm2/db/bootstrap.py`
+- `crm2/db/content_loader.py`
+- `crm2/db/core.py`
+- `crm2/db/events.py`
+- `crm2/db/migrate_admin.py`
+- `crm2/db/schedule_loader.py`
+- `crm2/db/schedule_repo.py`
+- `crm2/db/sessions.py`
+- `crm2/db/sqlite.py`
+- `crm2/db/users.py`
+- `crm2/db/users_repo.py`
+### services
+- `crm2/services/schedule.py`
+- `crm2/services/services.py`
+- `crm2/services/users.py`
+### keyboards
+- `crm2/keyboards/__init__.py`
+- `crm2/keyboards/_impl.py`
+- `crm2/keyboards/admin_attendance.py`
+- `crm2/keyboards/admin_schedule.py`
+- `crm2/keyboards/admin_users.py`
+- `crm2/keyboards/agents.py`
+- `crm2/keyboards/info_menu.py`
+- `crm2/keyboards/main_menu.py`
+- `crm2/keyboards/profile.py`
+- `crm2/keyboards/project.py`
+- `crm2/keyboards/schedule.py`
+- `crm2/keyboards/session_picker.py`
 
----
+## ⚙️ Переменные окружения (.env.example)
+- `TELEGRAM_TOKEN=ваш_токен_бота`
+- `ADMIN_ID=ваш_telegram_id_цифрами  # например 448124106`
+- `LOG_LEVEL=INFO  # DEBUG | INFO | WARNING | ERROR`
+- `TELEGRAM_TOKEN=82866_сокращено безопасностью`
+- `WEATHER_API_KEY=55449_сокращено безопасностью`
+- `ADMIN_ID=44812_сокращено безопасностью`
+- `IGOR_KHOD_DEEPSEEK_API_KEY=sk-76422_сокращено безопасностью`
+- `IGOR_OPENAI_API=sk-proj_сокращено безопасностью`
+- `DEBUG_FULL_EXIT=1`
 
-## 1. Обзор проекта
-Telegram-бот для управления потоками психотехнических тренировок.  
-Роли: **guest**, **user**, **admin**, **cohort_1**, **cohort_2**, **new_intake**, **alumni**, **admins**.
-
----
-
-## 2. Меню по ролям
-
-### Guest
-- 📖 О проекте (ReplyKeyboardRemove, без возврата в меню)
-- (Нет кнопки «Главное меню»)
-
-### User
-- 📅 Расписание (≤5 ближайших дат; выбор → тема + описание)
-- 📚 Материалы
-- 👤 Личный кабинет
-- 📊 Посещение
-- ↩️ Главное меню
-
-### Admin
-- Всё как у User
-- ⚙️ Админ-панель:
-  - 🩺 DB Doctor
-  - 👥 Пользователи (изменение ролей, блокировка)
-  - 🗂 Управление потоками
-  - 📢 Рассылка (broadcast)
-  - 📜 Логи (admin_logs)
-  - 📅 Управление расписанием (admin_schedule)
-
-### Alumni
-- Доступ к архиву материалов
-- Ограниченный просмотр расписания
-
----
-
-## 3. Переменные окружения (.env)
-
-Файл: `/etc/psytech-bot.env` (на VPS)  
-Примеры:
-```
-TELEGRAM_TOKEN=123456:ABCDEF
-DB_PATH=/var/data/crm.db
-LOG_LEVEL=INFO
-VPS_HOST=185.23.34.161
-VPS_USER=botuser
-VPS_SSH_PORT=2222
-```
-(секреты GitHub: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_SSH_PORT`)
-
----
-
-## 4. Таблицы БД
-
-### users
-- id (INTEGER, PK)
-- telegram_id (INTEGER)
-- nickname (TEXT, уникальный)
-- password (TEXT, bcrypt hash)
-- role (TEXT, default='user')
-- cohort_id (INTEGER, FK → cohorts.id)
-- full_name (TEXT)
-- phone (TEXT)
-- email (TEXT)
-
-### cohorts
-- id (INTEGER, PK)
-- code (TEXT, уникальный: cohort_2023_09, cohort_2025_03 …)
-- title (TEXT)
-
-### session_days
-- id (INTEGER, PK)
-- date (DATE)
-- cohort_id (INTEGER, FK)
-- topic_code (TEXT, FK → topics.code)
-
-### topics
-- code (TEXT, PK)
-- title (TEXT)
-- annotation (TEXT)
-
-### events (планируется)
-- id, type, date, metadata
-
-### payments (планируется)
-- id, user_id, amount, status, date
-
----
-
-## 5. Структура репозитория (ссылки на GitHub)
-
-```
-crm2/
- ├── __main__.py
- ├── app.py
- ├── handlers/
- │    ├── start.py
- │    ├── auth.py
- │    ├── registration.py
- │    ├── info.py
- │    ├── admin_users.py
- │    ├── admin_db.py
- │    └── handlers_schedule.py
- ├── keyboards/
- │    ├── main_menu.py
- │    └── __init__.py
- ├── services/
- │    └── schedule.py
- ├── db/
- │    ├── auto_migrate.py
- │    ├── schedule_loader.py
- │    └── users_repo.py
- └── PROJECT_MAP.full.md   ← этот файл
-```
-
-🔗 Прямые ссылки:  
-- [`app.py`](https://github.com/igorkhod/crm/blob/main/crm2/app.py)  
-- [`handlers/start.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/start.py)  
-- [`handlers/auth.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/auth.py)  
-- [`handlers/registration.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/registration.py)  
-- [`handlers/info.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/info.py)  
-- [`handlers/admin_users.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/admin_users.py)  
-- [`handlers/admin_db.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/admin_db.py)  
-- [`handlers/handlers_schedule.py`](https://github.com/igorkhod/crm/blob/main/crm2/handlers/handlers_schedule.py)  
-- [`db/users_repo.py`](https://github.com/igorkhod/crm/blob/main/crm2/db/users_repo.py)  
-- [`db/schedule_loader.py`](https://github.com/igorkhod/crm/blob/main/crm2/db/schedule_loader.py)  
-- [`db/auto_migrate.py`](https://github.com/igorkhod/crm/blob/main/crm2/db/auto_migrate.py)  
-- [`services/schedule.py`](https://github.com/igorkhod/crm/blob/main/crm2/services/schedule.py)
-
----
-
-## 6. Инфраструктура
-
-### Systemd-сервис
-Файл: `/etc/systemd/system/psytech-bot.service`  
-- Автозапуск: `/opt/psytech-bot/app`  
-- Управление:
-  ```bash
-  sudo -n systemctl restart psytech-bot
-  sudo -n systemctl status psytech-bot
-  ```
-
-### Admin-скрипт
-Файл: `~/admin.sh`  
-- Автобэкап `/var/data/crm.db`
-- Назначение роли `admin` и потока:
-  ```bash
-  admin
-  ```
-
-### CI/CD (GitHub Actions)
-Файл: `.github/workflows/deploy.yml`  
-- При `git push main`:
-  - заливает код на VPS
-  - ставит зависимости
-  - перезапускает сервис
-
----
-
-## 7. Roadmap
-- [x] Ограничение меню для guest (без «↩️ Главное меню»)
-- [x] Настроен деплой GitHub → VPS (scp+ssh)
-- [ ] Кнопки «Расписание»: ≤5 дат, при клике → тема и описание
-- [ ] Учёт посещений и оплат
-- [ ] Рассылка материалов оплатившим
-- [ ] Админ-модули: schedule/logs/broadcast
-- [ ] Webhook через Nginx+SSL (опционально)
+## 🗄 Таблицы БД
+(БД недоступна, используем DB_PATH=/var/data/crm.db)
