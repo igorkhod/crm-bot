@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
 
-# даём job право пушить изменения в репозиторий
+# нужно, чтобы job мог пушить изменения обратно
 permissions:
   contents: write
 
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Код
+      # 1) Получаем код
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -28,23 +28,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 2) Автообновление документации (PROJECT_MAP.full.md, README.md)
+      # 2) ⛏ Генерим и коммитим документацию (PROJECT_MAP.full.md, README.md)
       - name: Update docs (PROJECT_MAP.full.md, README.md)
         run: |
           set -e
-          # если генератор есть — запускаем; если нет — не падаем
-          if [ -f scripts/update_project_map.py ]; then
-            python scripts/update_project_map.py || true
-          fi
+          # запускаем твой генератор
+          python scripts/update_project_map.py
 
+          # настраиваем автора коммита от имени GitHub Actions
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # добавим, если файлы существуют в репозитории
+          # индексируем только если файлы есть
           git add crm2/PROJECT_MAP.full.md 2>/dev/null || true
           git add README.md 2>/dev/null || true
 
-          # коммитим только если есть изменения
+          # коммитим ТОЛЬКО при реальных изменениях
           if ! git diff --cached --quiet; then
             git commit -m "chore(docs): auto-update PROJECT_MAP.full.md and README.md [skip ci]"
             git push
@@ -52,7 +51,7 @@ jobs:
             echo "No doc changes"
           fi
 
-      # 3) Упаковываем репозиторий в tar.gz (без .git)
+      # 3) Упаковываем проект в tar.gz (без .git)
       - name: Make tarball (git archive)
         run: |
           git archive --format=tar.gz -o app.tgz HEAD
@@ -69,7 +68,7 @@ jobs:
           source: app.tgz
           target: /opt/psytech-bot/
 
-      # 5) Распаковываем, ставим зависимости, перезапускаем сервис
+      # 5) Разворачиваем и перезапускаем сервис на VPS
       - name: Extract & restart (SSH)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -84,7 +83,7 @@ jobs:
             tar xzf app.tgz -C app
             rm -f app.tgz
 
-            # найдём requirements в привычных местах
+            # находим requirements в типичных местах
             REQ=""
             for CAND in app/requirements.txt app/crm2/requirements.txt app/crm2/app/requirements.txt app/*/requirements.txt app/**/requirements.txt; do
               [ -f "$CAND" ] && { REQ="$CAND"; break; }
