@@ -1,10 +1,23 @@
-# === Автогенерированный заголовок: crm2/handlers/admin/panel.py
+# === Автогенерированный заголовок:"
 # Список верхнеуровневых объектов файла (классы и функции).
 # Обновляется вручную при изменении состава функций/классов.
 # Классы: —
 # Функции: _admin_menu_kb, admin_panel_kb, render_admin_panel, admin_entry_msg, admin_open_cb, admin_users_entry, admin_schedule_entry, admin_broadcast_entry, admin_logs_entry, admin_dbdoctor_entry, admin_dbdoctor_entry_text
 # === Конец автозаголовка
 # crm2/handlers/admin/panel.py
+# 📄 crm2/handlers/admin/panel.py
+# panel
+# Назначение: обработчик и клавиатура админ-панели.
+# Что делает:
+# формирует inline-меню админки с кнопками: 👥 Пользователи, 🗓 Расписание, 📣 Рассылка, 🧾 Логи, 🩺 DB Doctor, 🤖 ChatGPT;
+# рендерит админ-панель в сообщениях и callback-ответах;
+# реализует заглушки для перехода в разделы (расписание, рассылка, логи);
+# перенаправляет в отдельные модули для DB Doctor и ChatGPT.
+# Расположение:
+# crm2/
+#  └── handlers/
+#       └── admin/
+#            └── panel.py
 from aiogram import Router, F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest
@@ -34,6 +47,7 @@ def _admin_menu_kb() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="🩺 DB Doctor", callback_data="adm:dbdoctor"),
+            InlineKeyboardButton(text="🤖 ChatGPT", callback_data="adm:chatgpt_status"),
         ],
     ]
 

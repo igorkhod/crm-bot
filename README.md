@@ -1,60 +1,75 @@
-# ProjectCRM
+# Psytech Bot (aiogram 3.x)
 
-Лёгкий CRM-бот на **Aiogram 3** с локальной SQLite-базой. Этот пакет запускается командой:
+## 📌 Описание
+Телеграм‑бот для управления обучающими потоками ("Психонетика").
+Функции:
+- регистрация и вход по никнейму/паролю;
+- учёт ролей (user/admin);
+- расписание занятий;
+- уведомления администратору при запуске/остановке;
+- управление пользователями и потоками.
 
-```bash
-python -m crm2
-```
+---
 
-## Структура
-- `crm2/` — код бота (хендлеры, сервисы, БД и т.п.)
-- `requirements.txt` — зависимости
-- `crm2.db` — SQLite-база (создаётся автоматически при первом запуске)
+## 🚀 Деплой
 
-## Подготовка `.env`
-Скопируйте `.env.example` → `.env` и заполните значения:
-
-```dotenv
-TELEGRAM_TOKEN=ваш_токен
-ADMIN_ID=ваш_id
-LOG_LEVEL=INFO
-# CRM_DB=crm2.db  # можно не трогать
-```
-
-## Локальный запуск
-```bash
-python -m venv .venv
-. .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python -m crm2
-```
-
-## Развёртывание на Render (в существующий проект)
-1. **GitHub.** Инициализируйте репозиторий и запушьте код:
-   ```powershell
-   git init
-   git add .
-   git commit -m "ProjectCRM: init 2025-08-20"
-   git branch -M main
-   git remote add origin https://github.com/ВАШ_АККАУНТ/ВАШ_РЕПО.git
-   git push -u origin main
+### Render
+1. Подключить GitHub‑репозиторий.
+2. Указать start‑command:
+   ```bash
+   python -m crm2
    ```
-2. **Render → ваш прежний сервис (Background Worker).**
-   - **Environment:** `Python`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `python -m crm2`
-   - **Auto-Deploy:** из `main`.
-   - **Environment Variables:** перенесите из старого проекта или добавьте заново:
-     - `TELEGRAM_TOKEN`
-     - `ADMIN_ID` (опционально)
-     - `LOG_LEVEL=INFO`
-     - `CRM_DB=/opt/render/project/src/crm2.db` (по желанию; иначе по умолчанию)
-3. **База данных.** SQLite-файл будет расположен в корне проекта (`/opt/render/project/src/crm2.db`) и создастся автоматически. Сохраните резервную копию перед миграциями.
+3. Добавить переменные окружения (TELEGRAM_TOKEN, DB_PATH и т.п.).
 
-## Альтернатива: Blueprint (опционально)
-Можно создать `render.yaml` и импортировать через **Blueprints**. Пример — в этом репозитории.
+### VPS (Ubuntu 22.04, systemd)
+1. Установить зависимости:
+   ```bash
+   sudo apt update && sudo apt install python3-venv sqlite3
+   ```
+2. Склонировать репозиторий в `/opt/psytech-bot`.
+3. Создать виртуальное окружение:
+   ```bash
+   python3 -m venv /opt/psytech-bot/venv
+   /opt/psytech-bot/venv/bin/pip install -r requirements.txt
+   ```
+4. Создать файл окружения `/etc/psytech-bot.env`:
+   ```ini
+   ENV_LABEL=prod
+   TELEGRAM_TOKEN=...
+   DB_PATH=/var/data/crm.db
+   LOG_LEVEL=INFO
+   ADMIN_ID=448124106
+   ```
+5. Настроить systemd:
+   ```ini
+   [Unit]
+   Description=Psytech Telegram Bot (aiogram)
+   After=network.target
 
-## Частые вопросы
-- **Как перезапустить воркер?** В Render → **Manual Deploy**.
-- **Как смотреть логи?** В Render → Logs (вывод идёт через `logging`).
-- **Почему бот молчит?** Проверьте токен, переменную `TELEGRAM_TOKEN`, а также что сервис — **Background Worker** (не Web Service).
+   [Service]
+   Type=simple
+   User=botuser
+   WorkingDirectory=/opt/psytech-bot/app
+   EnvironmentFile=/etc/psytech-bot.env
+   ExecStart=/opt/psytech-bot/venv/bin/python -m crm2
+   Restart=always
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable psytech-bot
+   sudo systemctl start psytech-bot
+   ```
+
+---
+
+## 🔔 Уведомления
+- `🚀 Бот запущен!` при старте systemd.
+- `⛔ Бот остановлен.` при остановке.
+
+---
+
+## 📂 Документация
+Подробная структура: [crm2/PROJECT_MAP.full.md](crm2/PROJECT_MAP.full.md)

@@ -1,4 +1,16 @@
-#
+# 📄 crm2/app.py
+# app
+# Назначение: главный вход бота (aiogram v3).
+# Что делает:
+# инициализирует логирование и конфигурацию (BOT_TOKEN, ADMIN_ID);
+# подключает сессию Telegram API;
+# регистрирует обработчики старта/остановки бота (с уведомлениями администратору);
+# включает в диспетчер все основные роутеры: consent, start, registration, auth, info, help, about, profile, attendance;
+# подключает админ-панель, DB Doctor и ChatGPT-роутер;
+# запускает цикл polling.
+# Расположение:
+# crm2/
+#  └── app.py
 # === Автогенерированный заголовок: crm2/app.py
 # Список верхнеуровневых объектов файла (классы и функции).
 # Обновляется вручную при изменении состава функций/классов.
@@ -45,6 +57,7 @@ from crm2.handlers import help as help_router
 from crm2.handlers import about as about_router
 from crm2.handlers import profile as profile_router
 from crm2.handlers import attendance as attendance_router
+from crm2.handlers.admin import chatgpt as admin_chatgpt
 
 # Админ: панель и DB Doctor (подключим раньше прочих админ-модулей)
 from crm2.handlers.admin import panel as admin_panel_router
@@ -143,6 +156,7 @@ async def main() -> None:
     dp.include_router(about_router.router)
     dp.include_router(profile_router.router)
     dp.include_router(attendance_router.router)
+    dp.include_router(admin_chatgpt.router)
 
     # Если где-то есть общий роутер расписания типа crm2/handlers_schedule.py с router,
     # можно мягко подключить и его:
