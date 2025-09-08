@@ -1,10 +1,11 @@
 # PROJECT_MAP.full.md — автогенерация
-> Обновлено: Sun Sep  7 02:23:00 UTC 2025
+> Обновлено: Mon Sep  8 07:51:59 UTC 2025
 
 ## 📂 Структура файлов
 ### handlers
 - `crm2/handlers/about.py`
 - `crm2/handlers/admin/broadcast.py`
+- `crm2/handlers/admin/chatgpt.py`
 - `crm2/handlers/admin/logs.py`
 - `crm2/handlers/admin/panel.py`
 - `crm2/handlers/admin/schedule.py`
@@ -37,6 +38,7 @@
 - `crm2/db/users.py`
 - `crm2/db/users_repo.py`
 ### services
+- `crm2/services/chatgpt_status.py`
 - `crm2/services/schedule.py`
 - `crm2/services/services.py`
 - `crm2/services/users.py`
