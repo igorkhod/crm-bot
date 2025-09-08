@@ -31,7 +31,7 @@ def _decide_state_from_error(msg: str) -> PaidState:
         # сервис жив, но сейчас недоступен — считаем, что оплаченная зона существует
         return "open"
     return "unknown"
-
+# IGOR_OPENAI_API=
 def probe_paid_access() -> Dict[str, Any]:
     """
     Пробуем сделать МИНИ-комплишн (1–3 токена) на дешёвой модели.
@@ -42,7 +42,7 @@ def probe_paid_access() -> Dict[str, Any]:
     """
     model = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     info: Dict[str, Any] = {
-        "OPENAI_API_KEY_present": bool(os.getenv("OPENAI_API_KEY")),
+        "IGOR_OPENAI_API_present": bool(os.getenv("IGOR_OPENAI_API")),
         "model": model,
         "api_ping_ms": "—",
         "state": "unknown",
@@ -50,8 +50,8 @@ def probe_paid_access() -> Dict[str, Any]:
         "note": "Проверка делает крошечный платный запрос (пара токенов).",
     }
 
-    if not info["OPENAI_API_KEY_present"]:
-        info["last_error"] = "OPENAI_API_KEY не найден"
+    if not info["IGOR_OPENAI_API_present"]:
+        info["last_error"] = "IGOR_OPENAI_API не найден"
         return info
 
     try:
