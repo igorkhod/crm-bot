@@ -20,6 +20,10 @@ from aiogram.types import Message, CallbackQuery
 from crm2.services.schedule import upcoming  # элементы имеют поля start/end и, при наличии, topic_code/title/annotation
 from crm2.keyboards import schedule_root_kb, role_kb, schedule_dates_kb
 from crm2.services import schedule as sch
+from crm2.keyboards.project import project_menu_kb
+from crm2.keyboards import role_kb, guest_start_kb
+import sqlite3
+from crm2.db.sqlite import DB_PATH
 
 router = Router(name="info")
 
@@ -240,19 +244,17 @@ async def show_project_menu(message: Message):
 
 
 @router.message(F.text == "Как проводятся занятия")
-async def how_sessions_go(message: Message):
-    text = (
-        "🧘‍♂️ *Как проходят занятия Psytech*\n"
-        "Занятия строятся в формате психотехнологических практик.\n"
-        "🔹 Теория — краткие вводные идеи, чтобы направить внимание.\n"
-        "🔹 Практика — упражнения на концентрацию, деконцентрацию, "
-        "управление состояниями и работу с волей.\n"
-        "🔹 Рефлексия — обсуждение опыта и интеграция его в жизнь.\n"
-        "Мы соединяем древние традиции и современные методы, чтобы "
-        "человек обрел ясность, устойчивость и гармонию."
-    )
-    await message.answer(text, parse_mode="Markdown")
+async def show_project_menu(message: Message):
+    # Роль можно использовать для будущей логики, но подменю показываем всем
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        row = con.execute(
+            "SELECT role FROM users WHERE telegram_id = ? LIMIT 1",
+            (message.from_user.id,)
+        ).fetchone()
+        role = (row["role"] if row else None) or "guest"
 
+    await message.answer("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
 
 @router.message(F.text == "↩️ Главное меню")
 async def back_to_main_from_project(message: Message):
