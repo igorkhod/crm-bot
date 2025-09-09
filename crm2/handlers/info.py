@@ -217,34 +217,14 @@ import sqlite3
 from crm2.db.sqlite import DB_PATH
 
 
-@router.message(F.text == "ℹ️ Информация о проекте")
+@router.message(F.text.in_({"ℹ️ Информация о проекте", "📖 О проекте"}))
 async def show_project_menu(message: Message):
-    import sqlite3
-    from aiogram.types import ReplyKeyboardRemove
-    from crm2.db.sqlite import DB_PATH
-
-    # Определяем роль
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        row = con.execute(
-            "SELECT role FROM users WHERE telegram_id = ? LIMIT 1",
-            (message.from_user.id,)
-        ).fetchone()
-        role = (row["role"] if row else None) or "guest"
-
-    # Для guest — НИКАКИХ кнопок (убираем клавиатуру полностью)
-    if role == "guest":
-        await message.answer("ℹ️ Информация о проекте:", reply_markup=ReplyKeyboardRemove())
-        # сюда можно вывести текст/разделы, но без кнопок «назад»
-        return
-
-    # user/admin — можно показать меню раздела
+    # Показываем подменю всем ролям (guest/user/admin)
     await message.answer("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
 
 
-
 @router.message(F.text == "Как проводятся занятия")
-async def show_project_menu(message: Message):
+async def show_project_menu_legacy(message: Message):
     # Роль можно использовать для будущей логики, но подменю показываем всем
     with sqlite3.connect(DB_PATH) as con:
         con.row_factory = sqlite3.Row
