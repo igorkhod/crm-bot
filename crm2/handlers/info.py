@@ -24,6 +24,9 @@ from crm2.keyboards.project import project_menu_kb
 from crm2.keyboards import role_kb, guest_start_kb
 import sqlite3
 from crm2.db.sqlite import DB_PATH
+from aiogram.exceptions import TelegramBadRequest
+from crm2.keyboards.project import project_menu_kb
+
 
 router = Router(name="info")
 
@@ -328,9 +331,27 @@ async def on_info_meanings(cb: CallbackQuery):
     await cb.message.edit_text(load_html("meanings"), parse_mode="HTML", disable_web_page_preview=True)
     await cb.answer()
 
+
+
 @router.callback_query(F.data == "info:mainmenu")
 async def on_info_mainmenu(cb: CallbackQuery):
-    # мягкий «возврат»: показываем корневой раздел «О проекте»
-    from crm2.keyboards.project import project_menu_kb
-    await cb.message.edit_text("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
+    try:
+        await cb.message.edit_text(
+            "ℹ️ Информация о проекте:",
+            reply_markup=project_menu_kb()
+        )
+    except TelegramBadRequest as e:
+        # если Telegram ругается "message is not modified"
+        if "message is not modified" in str(e):
+            try:
+                # меняем только клавиатуру
+                await cb.message.edit_reply_markup(project_menu_kb())
+            except TelegramBadRequest:
+                # крайний случай — отправим новое сообщение
+                await cb.message.answer(
+                    "ℹ️ Информация о проекте:",
+                    reply_markup=project_menu_kb()
+                )
+        else:
+            raise
     await cb.answer()
