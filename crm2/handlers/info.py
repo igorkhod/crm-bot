@@ -213,7 +213,7 @@ import sqlite3
 from crm2.db.sqlite import DB_PATH
 
 
-@router.message(F.text == "📖 О проекте")
+@router.message(F.text == "ℹ️ Информация о проекте")
 async def show_project_menu(message: Message):
     import sqlite3
     from aiogram.types import ReplyKeyboardRemove
