@@ -25,12 +25,38 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import markdown
 import os
-
+from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+
+# если у тебя уже есть FastAPI app, используй его!
+web_app = FastAPI()
+
+@web_app.get("/info/meanings", response_class=HTMLResponse)
+async def get_meanings():
+    path = Path(__file__).parent / "content" / "info" / "meanings.md"
+    if not path.exists():
+        return "<h1>Файл meanings.md не найден</h1>"
+    md_text = path.read_text(encoding="utf-8")
+    html = markdown.markdown(md_text, extensions=["extra", "nl2br", "sane_lists"])
+    return f"""
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Смыслы проекта</title>
+      </head>
+      <body style="max-width:800px;margin:auto;font-family:sans-serif;line-height:1.6;">
+        {html}
+      </body>
+    </html>
+    """
+
 
 # ────────────────────────────── ЛОГИ ──────────────────────────────
 logging.basicConfig(
