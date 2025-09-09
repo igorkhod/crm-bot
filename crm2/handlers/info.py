@@ -332,3 +332,23 @@ async def on_cohort(cb: CallbackQuery):
         body = f"🗓 {span}\nТема: {title}\n\n{s.annotation}".strip()
         await cb.message.answer(body)
         await cb.answer()
+
+
+from crm2.services.content_loader import load_html
+
+@router.callback_query(F.data == "info:mode")
+async def on_info_mode(cb: CallbackQuery):
+    await cb.message.edit_text(load_html("mode"), parse_mode="HTML", disable_web_page_preview=True)
+    await cb.answer()
+
+@router.callback_query(F.data == "info:meanings")
+async def on_info_meanings(cb: CallbackQuery):
+    await cb.message.edit_text(load_html("meanings"), parse_mode="HTML", disable_web_page_preview=True)
+    await cb.answer()
+
+@router.callback_query(F.data == "info:mainmenu")
+async def on_info_mainmenu(cb: CallbackQuery):
+    # мягкий «возврат»: показываем корневой раздел «О проекте»
+    from crm2.keyboards.project import project_menu_kb
+    await cb.message.edit_text("ℹ️ Информация о проекте:", reply_markup=project_menu_kb())
+    await cb.answer()
