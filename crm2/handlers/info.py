@@ -26,6 +26,8 @@ import sqlite3
 from crm2.db.sqlite import DB_PATH
 from aiogram.exceptions import TelegramBadRequest
 from crm2.keyboards.project import project_menu_kb
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+import os
 
 
 router = Router(name="info")
@@ -326,9 +328,29 @@ async def on_info_mode(cb: CallbackQuery):
     await cb.message.edit_text(load_html("mode"), parse_mode="HTML", disable_web_page_preview=True)
     await cb.answer()
 
+
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+import os
+
 @router.callback_query(F.data == "info:meanings")
 async def on_info_meanings(cb: CallbackQuery):
-    await cb.message.edit_text(load_html("meanings"), parse_mode="HTML", disable_web_page_preview=True)
+    # 1) Можно указать свой URL через переменную окружения INFO_MEANINGS_URL
+    url = os.getenv(
+        "INFO_MEANINGS_URL",
+        # 2) По умолчанию — страница файла в GitHub-репозитории
+        "https://github.com/igorkhod/crm/blob/main/crm2/content/info/meanings.md"
+    )
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🌐 Открыть в браузере", url=url)
+    kb.button(text="↩️ Главное меню", callback_data="info:mainmenu")
+    kb.adjust(1, 1)
+
+    await cb.message.edit_text(
+        "📖 Смыслы проекта открываются во внешнем браузере:",
+        reply_markup=kb.as_markup(),
+        disable_web_page_preview=False
+    )
     await cb.answer()
 
 
