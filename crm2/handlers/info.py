@@ -345,7 +345,7 @@ async def on_info_mainmenu(cb: CallbackQuery):
         if "message is not modified" in str(e):
             try:
                 # меняем только клавиатуру
-                await cb.message.edit_reply_markup(project_menu_kb())
+                await cb.message.edit_reply_markup(reply_markup=project_menu_kb())
             except TelegramBadRequest:
                 # крайний случай — отправим новое сообщение
                 await cb.message.answer(
