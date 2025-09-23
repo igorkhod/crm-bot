@@ -6,6 +6,7 @@
 # === Конец автозаголовка
 # crm2/keyboards/project.py
 
+
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def project_menu_kb():
