@@ -21,7 +21,6 @@ router = Router()
 # def get_db_connection():
 #     return sqlite3.connect("crm2.db")
 
-
 def get_user_role(telegram_id: int) -> str | None:
     with get_db_connection() as conn:
         cur = conn.cursor()
