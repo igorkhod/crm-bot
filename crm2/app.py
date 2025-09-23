@@ -20,7 +20,6 @@
 # === Файл: crm2/app.py
 # Точка входа бота (aiogram v3). Инициализация, подключение роутеров, запуск.
 
-
 from __future__ import annotations
 
 import asyncio

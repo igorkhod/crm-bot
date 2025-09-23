@@ -5,6 +5,7 @@
 # Функции: main_menu_kb
 # === Конец автозаголовка
 # crm2/keyboards/main_menu.py
+
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def main_menu_kb() -> ReplyKeyboardMarkup:
