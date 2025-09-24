@@ -129,3 +129,19 @@ Secrets:
   - «Режим проведения занятий» (контент: `content/info/mode.md`)
   - «Смыслы, заложенные в проекте» (контент: `content/info/meanings.md`)
 - Использует сервис `services/content_loader.py` для рендера Markdown.
+# PROJECT_MAP.md
+
+---
+
+## app.py (экспорт bot & dp)
+- Инициализирует **aiogram.Bot** из `TELEGRAM_TOKEN` (берётся из окружения; у прод-сервера — через `EnvironmentFile=/opt/psytech-bot/app/token.env` в systemd).
+- Экспортирует:
+  - `bot` — используется хендлерами для отправки сообщений.
+  - `dp` — главный Dispatcher.
+- Подключает роутеры из `crm2/handlers/*`, в том числе `admin_attendance.router`.
+
+### handlers/admin_attendance.py
+- Команда: `/homework_send <session_id> <ссылка>`
+- Берёт список присутствовавших через `crm2/services/attendance.get_present_users(session_id)`.
+- Импортирует бот так: `from crm2.app import bot` (bot — экспорт из `app.py`).
+- Отправляет ссылку (Яндекс.Диск и т.п.) **только** тем, у кого статус `present` в `attendance`.

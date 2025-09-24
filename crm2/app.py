@@ -87,6 +87,7 @@ from crm2.handlers.admin import chatgpt as admin_chatgpt
 # Админ: панель и DB Doctor (подключим раньше прочих админ-модулей)
 from crm2.handlers.admin import panel as admin_panel_router
 from crm2.handlers import admin_db_doctor as admin_db_doctor_router
+from crm2.handlers import admin_attendance
 
 # Вспомогательные миграции
 from crm2.db.auto_migrate import ensure_schedule_schema
@@ -167,6 +168,7 @@ async def main() -> None:
     # 2) Админ: панель и СРАЗУ DB Doctor (чтобы перехватывал свои кнопки первым)
     dp.include_router(admin_panel_router.router)
     dp.include_router(admin_db_doctor_router.router)
+    dp.include_router(admin_attendance.router)
 
     # 3) Остальные админ-подсекции (могут отсутствовать — подключаем мягко)
     try_include(dp, "crm2.handlers.admin_users")  # если есть crm2/handlers/admin_users.py
