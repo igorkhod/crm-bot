@@ -1,5 +1,5 @@
 # PROJECT_MAP.full.md — автогенерация
-> Обновлено: Tue Sep 23 03:39:58 UTC 2025
+> Обновлено: Wed Sep 24 04:44:29 UTC 2025
 
 ## 📂 Структура файлов
 ### handlers
@@ -10,6 +10,7 @@
 - `crm2/handlers/admin/panel.py`
 - `crm2/handlers/admin/schedule.py`
 - `crm2/handlers/admin/users.py`
+- `crm2/handlers/admin_attendance.py`
 - `crm2/handlers/admin_db.py`
 - `crm2/handlers/admin_db_doctor.py`
 - `crm2/handlers/admin_users.py`
@@ -38,6 +39,7 @@
 - `crm2/db/users.py`
 - `crm2/db/users_repo.py`
 ### services
+- `crm2/services/attendance.py`
 - `crm2/services/chatgpt_status.py`
 - `crm2/services/content_loader.py`
 - `crm2/services/schedule.py`
