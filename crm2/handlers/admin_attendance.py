@@ -1,87 +1,98 @@
 # crm2/handlers/admin_attendance.py
+from __future__ import annotations
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+
+from crm2.bot import bot     # ✅ берём бота из отдельного модуля
+from crm2.db import db
 from crm2.services import attendance
 
 router = Router()
 
+# ---------------- Меню раздела: Посещаемость ----------------
 
-# --- Меню посещаемости ---
-
-@router.message(F.text == "/attendance")
 async def show_attendance_menu(message: Message):
-    sessions = await attendance.get_sessions_near()
-    if not sessions:
-        await message.answer("Нет ближайших занятий.")
+    rows = await db.fetch_all(
+        "SELECT id, date, topic_code, stream_id FROM session_days ORDER BY date DESC LIMIT 20"
+    )
+    if not rows:
+        await message.answer("Нет занятий в базе.")
         return
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"{row[1]} [{row[3]}]", callback_data=f"att_sess:{row[0]}")]
-            for row in sessions
-        ]
-    )
-    await message.answer("Выбери занятие для отметки посещаемости:", reply_markup=kb)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"{r[1]} • {r[2] or '-'} • Stream:{r[3]}",
+            callback_data=f"att_sess:{r[0]}")]
+        for r in rows
+    ])
+    await message.answer("📋 Выберите занятие для отметки:", reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("att_sess:"))
-async def choose_session(callback: CallbackQuery):
-    session_id = int(callback.data.split(":")[1])
-    # Получаем список курсантов
-    rows = await callback.bot.db.fetch_all(
-        "SELECT id, nickname, full_name FROM users ORDER BY full_name"
-    )
+async def open_attendance_for_session(cb: CallbackQuery):
+    session_id = int(cb.data.split(":")[1])
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"✅ {r[2]}", callback_data=f"att:{session_id}:{r[0]}:present"
-                ),
-                InlineKeyboardButton(
-                    text=f"❌ {r[2]}", callback_data=f"att:{session_id}:{r[0]}:absent"
-                ),
-            ]
-            for r in rows
-        ]
+    users = await db.fetch_all("""
+        SELECT u.id, COALESCE(u.full_name, u.nickname, u.username, u.phone, CAST(u.id AS TEXT)) AS label
+        FROM users u
+        WHERE u.role='user'
+        ORDER BY label
+    """)
+
+    if not users:
+        await cb.message.edit_text("Курсанты не найдены.")
+        await cb.answer()
+        return
+
+    kb_rows = []
+    for uid, label in users:
+        kb_rows.append([
+            InlineKeyboardButton(text=f"✅ {label}", callback_data=f"att:{uid}:{session_id}:present"),
+            InlineKeyboardButton(text="❌", callback_data=f"att:{uid}:{session_id}:absent"),
+        ])
+
+    await cb.message.edit_text(
+        f"Занятие SID={session_id} — отметьте посещаемость:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows),
     )
-    await callback.message.answer(f"Отметка посещаемости (session_id={session_id}):", reply_markup=kb)
-    await callback.answer()
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("att:"))
-async def mark_attendance_cb(callback: CallbackQuery):
-    _, session_id, user_id, status = callback.data.split(":")
-    await attendance.mark_attendance(int(user_id), int(session_id), status, callback.from_user.id)
-    await callback.answer(f"✅ Отметил: {status}")
+async def mark_attendance_action(cb: CallbackQuery):
+    _, uid, session_id, status = cb.data.split(":")
+    await attendance.mark_attendance(int(uid), int(session_id), status, cb.from_user.id)
+    await cb.answer(f"Сохранено: {status}")
 
+# ---------------- Меню раздела: Домашние задания ----------------
 
-# --- Домашние задания ---
-
-@router.message(F.text == "/homework")
 async def show_homework_menu(message: Message):
-    sessions = await attendance.get_sessions_near()
-    if not sessions:
-        await message.answer("Нет ближайших занятий.")
+    rows = await db.fetch_all(
+        "SELECT id, date, topic_code, stream_id FROM session_days ORDER BY date DESC LIMIT 20"
+    )
+    if not rows:
+        await message.answer("Нет занятий в базе.")
         return
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"{row[1]} [{row[3]}]", callback_data=f"hw_sess:{row[0]}")]
-            for row in sessions
-        ]
-    )
-    await message.answer("Выбери занятие для рассылки ДЗ:", reply_markup=kb)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"{r[1]} • {r[2] or '-'} • Stream:{r[3]}",
+            callback_data=f"hw_sess:{r[0]}")]
+        for r in rows
+    ])
+    await message.answer("📚 Выберите занятие для рассылки ДЗ:", reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith("hw_sess:"))
-async def choose_homework_session(callback: CallbackQuery):
-    session_id = int(callback.data.split(":")[1])
-    await callback.message.answer(
-        f"Чтобы отправить ДЗ:\n"
+async def request_homework_link(cb: CallbackQuery):
+    session_id = int(cb.data.split(":")[1])
+    await cb.message.edit_text(
+        f"Вставьте ссылку на ДЗ для занятия SID={session_id}:\n"
+        f"Используйте команду:\n"
         f"/homework_send {session_id} <ссылка_на_ЯндексДиск>"
     )
-    await callback.answer()
+    await cb.answer()
 
 
 @router.message(F.text.startswith("/homework_send"))
@@ -94,14 +105,23 @@ async def send_homework(message: Message):
     session_id = int(parts[1])
     link = parts[2]
 
+    await attendance.ensure_homework_delivery_table()
+
+    # только тем, кто был present и ещё не получал материалы
     user_ids = await attendance.get_not_yet_delivered(session_id)
-    sent = 0
+    if not user_ids:
+        await message.answer("👌 Все присутствовавшие уже получили материалы.")
+        return
+
+    ok = fail = 0
     for uid in user_ids:
         try:
-            await message.bot.send_message(uid, f"📚 Домашнее задание:\n{link}")
+            # Можно использовать и message.bot, но здесь у нас импортирован глобальный bot.
+            await bot.send_message(uid, f"📚 Домашнее задание по занятию {session_id}:\n{link}")
             await attendance.mark_homework_delivered(session_id, uid, link)
-            sent += 1
+            ok += 1
         except Exception as e:
-            await message.answer(f"❌ Не удалось отправить {uid}: {e}")
+            fail += 1
+            await message.answer(f"⚠️ {uid}: {e}")
 
-    await message.answer(f"✅ Отправлено {sent} курсантам (session_id={session_id})")
+    await message.answer(f"📤 ДЗ отправлено: {ok}; ошибок: {fail}")
