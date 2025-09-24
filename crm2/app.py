@@ -34,6 +34,10 @@ async def _runner():
     # ---- здесь перечисляем все хэндлеры ----
     _try_include("crm2.handlers.admin.panel")        # ✅ админ-панель (если файл: crm2/handlers/admin/panel.py)
     _try_include("crm2.handlers.admin_attendance")   # ✅ посещаемость + ДЗ
+    # Админ: посещаемость и домашние задания
+    _try_include("crm2.handlers.admin_attendance")
+    _try_include("crm2.handlers.admin_homework")  # если создашь отдельный модуль
+    # _try_include("crm2.handlers.admin_homework")   # если вынесешь ДЗ в отдельный модуль
 
     # Остальные твои хэндлеры:
     _try_include("crm2.handlers.admin_users")
