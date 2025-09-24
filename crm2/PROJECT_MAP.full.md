@@ -1,5 +1,5 @@
 # PROJECT_MAP.full.md — автогенерация
-> Обновлено: Wed Sep 24 04:44:29 UTC 2025
+> Обновлено: Wed Sep 24 08:21:34 UTC 2025
 
 ## 📂 Структура файлов
 ### handlers
@@ -49,6 +49,7 @@
 - `crm2/keyboards/__init__.py`
 - `crm2/keyboards/_impl.py`
 - `crm2/keyboards/admin_attendance.py`
+- `crm2/keyboards/admin_panel.py`
 - `crm2/keyboards/admin_schedule.py`
 - `crm2/keyboards/admin_users.py`
 - `crm2/keyboards/agents.py`
