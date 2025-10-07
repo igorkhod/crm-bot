@@ -1,127 +1,256 @@
-# crm2/handlers/admin_attendance.py
 from __future__ import annotations
 
+import os
+import sqlite3
+import logging
+from datetime import date, datetime
+from typing import Optional, Iterable
+
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery
 
-from crm2.bot import bot     # ✅ берём бота из отдельного модуля
-from crm2.db import db
-from crm2.services import attendance
-
+from crm2.db.core import get_db_connection
+from crm2.handlers.admin.panel import open_admin_menu
+from crm2.keyboards.admin_attendance import (
+    attendance_root_kb,
+    attendance_users_kb,
+)
+# crm2/handlers/admin_attendance.py
+log = logging.getLogger(__name__)
 router = Router()
 
-# ---------------- Меню раздела: Посещаемость ----------------
+# --- access ---------------------------------------------------------
 
-async def show_attendance_menu(message: Message):
-    rows = await db.fetch_all(
-        "SELECT id, date, topic_code, stream_id FROM session_days ORDER BY date DESC LIMIT 20"
+ADMIN_ID = os.getenv("ADMIN_ID")
+try:
+    ADMIN_ID_INT = int(ADMIN_ID) if ADMIN_ID else None
+except Exception:
+    ADMIN_ID_INT = None
+
+
+def _is_admin(ev: Message | CallbackQuery) -> bool:
+    uid = ev.from_user.id if hasattr(ev, "from_user") else None
+    ok = ADMIN_ID_INT is not None and uid == ADMIN_ID_INT
+    if not ok:
+        log.debug("[ACCESS] denied: uid=%s ADMIN_ID=%s", uid, ADMIN_ID_INT)
+    return ok
+
+
+# --- helpers --------------------------------------------------------
+
+def _fmt_d(d: date) -> str:
+    return d.strftime("%d.%m.%Y")
+
+
+def _rowdicts(cur) -> list[dict]:
+    cols = [c[0] for c in cur.description]
+    return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+# --- DB: session_days / users / attendance -------------------------
+
+def _today_session_day() -> Optional[dict]:
+    today_iso = date.today().strftime("%Y-%m-%d")
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        row = con.execute(
+            "SELECT id, date, stream_id, COALESCE(topic_code,'') AS topic_code "
+            "FROM session_days WHERE date = ? LIMIT 1",
+            (today_iso,),
+        ).fetchone()
+        log.debug("[DB] today_session_day -> %s", dict(row) if row else None)
+        return dict(row) if row else None
+
+
+def _recent_past_session_days(limit: int = 2) -> list[dict]:
+    today_iso = date.today().strftime("%Y-%m-%d")
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            "SELECT id, date, stream_id, COALESCE(topic_code,'') AS topic_code "
+            "FROM session_days "
+            "WHERE date < ? "
+            "ORDER BY date DESC LIMIT ?",
+            (today_iso, limit),
+        )
+        data = _rowdicts(cur)
+        log.debug("[DB] recent_past_session_days(%s) -> %s", limit, data)
+        return data
+
+
+def _session_day_by_id(sd_id: int) -> Optional[dict]:
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        row = con.execute(
+            "SELECT id, date, stream_id, COALESCE(topic_code,'') AS topic_code "
+            "FROM session_days WHERE id = ?",
+            (sd_id,),
+        ).fetchone()
+        log.debug("[DB] session_day_by_id(%s) -> %s", sd_id, dict(row) if row else None)
+        return dict(row) if row else None
+
+
+def _users_of_stream(stream_id: int) -> list[dict]:
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            """
+            SELECT u.id, u.full_name, u.username, u.nickname, u.telegram_id
+            FROM participants p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.stream_id = ?
+            ORDER BY u.full_name COLLATE NOCASE, u.id
+            """,
+            (stream_id,),
+        )
+        data = _rowdicts(cur)
+        log.debug("[DB] users_of_stream(%s) -> %d users", stream_id, len(data))
+        return data
+
+
+def _attendance_map(session_id: int) -> dict[int, str]:
+    with get_db_connection() as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            "SELECT user_id, status FROM attendance WHERE session_id = ?",
+            (session_id,),
+        )
+        data = {int(r["user_id"]): str(r["status"]) for r in cur.fetchall()}
+        log.debug("[DB] attendance_map(session_id=%s) -> %s", session_id, data)
+        return data
+
+
+def _upsert_attendance(user_id: int, session_id: int, status: str, noted_by: int) -> None:
+    log.debug("[DB] upsert_attendance u=%s s=%s status=%s by=%s",
+              user_id, session_id, status, noted_by)
+    with get_db_connection() as con:
+        con.execute(
+            """
+            INSERT INTO attendance(user_id, session_id, status, noted_by)
+            VALUES (?,?,?,?)
+            ON CONFLICT(user_id, session_id) DO UPDATE SET
+              status   = excluded.status,
+              noted_at = CURRENT_TIMESTAMP,
+              noted_by = excluded.noted_by
+            """,
+            (user_id, session_id, status, noted_by),
+        )
+        con.commit()
+
+
+# --- entry ----------------------------------------------------------
+# принимаем И старое, и новое callback_data
+@router.callback_query(F.data.in_({"admin:attendance", "admin:att:root"}))
+async def admin_attendance_entry(cq: CallbackQuery):
+    log.debug("[ENTRY] admin_attendance_entry data=%s", cq.data)
+    if not _is_admin(cq):
+        return await cq.answer("Доступ только для администратора", show_alert=True)
+
+    today = date.today()
+    sd = _today_session_day()
+
+    if sd:
+        # Вариант 2: сегодня занятие
+        text = (
+            f"Сегодня {_fmt_d(today)}.\n"
+            f"Занятие потока {sd['stream_id']}, {sd.get('topic_code') or 'сессия'}.\n\n"
+            f"Нажмите «Регистрация» для отметки присутствия."
+        )
+        kb = attendance_root_kb(today_session=sd, past=[])
+        await cq.message.answer(text, reply_markup=kb.as_markup(), parse_mode=None)
+        return await cq.answer("Открыта регистрация на сегодня")
+
+    # Вариант 1: занятий сегодня нет
+    past = _recent_past_session_days(limit=2)
+    pretty = " • ".join(
+        f"поток {r['stream_id']} — {r.get('topic_code') or 'сессия'} — "
+        f"{_fmt_d(datetime.fromisoformat(r['date']).date())}"
+        for r in past
+    ) or "варианты отсутствуют"
+    text = (
+        f"Сегодня {_fmt_d(today)}, занятий нет.\n\n"
+        f"Какому потоку и на какую дату будете отмечать посещение?\n\n"
+        f"Ближайшие прошедшие: {pretty}"
     )
-    if not rows:
-        await message.answer("Нет занятий в базе.")
-        return
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=f"{r[1]} • {r[2] or '-'} • Stream:{r[3]}",
-            callback_data=f"att_sess:{r[0]}")]
-        for r in rows
-    ])
-    await message.answer("📋 Выберите занятие для отметки:", reply_markup=kb)
+    kb = attendance_root_kb(today_session=None, past=past)
+    await cq.message.answer(text, reply_markup=kb.as_markup(), parse_mode=None)
+    await cq.answer("Выберите дату")
 
 
-@router.callback_query(F.data.startswith("att_sess:"))
-async def open_attendance_for_session(cb: CallbackQuery):
-    session_id = int(cb.data.split(":")[1])
+# --- open session ----------------------------------------------------
 
-    users = await db.fetch_all("""
-        SELECT u.id, COALESCE(u.full_name, u.nickname, u.username, u.phone, CAST(u.id AS TEXT)) AS label
-        FROM users u
-        WHERE u.role='user'
-        ORDER BY label
-    """)
+@router.callback_query(F.data.startswith("admin:att:open:"))
+async def admin_attendance_open(cq: CallbackQuery):
+    if not _is_admin(cq):
+        return await cq.answer("Нет прав", show_alert=True)
+    sd_id = int(cq.data.split(":")[-1])
+    log.debug("[OPEN] session_day id=%s", sd_id)
 
-    if not users:
-        await cb.message.edit_text("Курсанты не найдены.")
-        await cb.answer()
-        return
+    sd = _session_day_by_id(sd_id)
+    if not sd:
+        log.warning("[OPEN] session_day not found: %s", sd_id)
+        return await cq.answer("Сессия не найдена", show_alert=True)
 
-    kb_rows = []
-    for uid, label in users:
-        kb_rows.append([
-            InlineKeyboardButton(text=f"✅ {label}", callback_data=f"att:{uid}:{session_id}:present"),
-            InlineKeyboardButton(text="❌", callback_data=f"att:{uid}:{session_id}:absent"),
-        ])
+    d = datetime.fromisoformat(sd["date"]).date()
+    users = _users_of_stream(int(sd["stream_id"]))
+    marks = _attendance_map(sd_id)
 
-    await cb.message.edit_text(
-        f"Занятие SID={session_id} — отметьте посещаемость:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows),
+    header = (
+        f"Отметка посещаемости\n"
+        f"Поток {sd['stream_id']} • {sd.get('topic_code') or 'сессия'} • {_fmt_d(d)}\n\n"
+        f"Нажимайте на имена для переключения статуса:\n"
+        f"⬜️ → ✅ присутствовал → ❌ отсутствовал → ⛔️ (>2 пропусков) → ⬜️"
     )
-    await cb.answer()
+    kb = attendance_users_kb(sd_id, users, marks)
+    await cq.message.answer(header, reply_markup=kb.as_markup(), parse_mode=None)
+    await cq.answer("Открыт список слушателей")
 
 
-@router.callback_query(F.data.startswith("att:"))
-async def mark_attendance_action(cb: CallbackQuery):
-    _, uid, session_id, status = cb.data.split(":")
-    await attendance.mark_attendance(int(uid), int(session_id), status, cb.from_user.id)
-    await cb.answer(f"Сохранено: {status}")
+# --- toggle ----------------------------------------------------------
 
-# ---------------- Меню раздела: Домашние задания ----------------
+@router.callback_query(F.data.startswith("admin:att:toggle:"))
+async def admin_attendance_toggle(cq: CallbackQuery):
+    if not _is_admin(cq):
+        return await cq.answer("Нет прав", show_alert=True)
 
-async def show_homework_menu(message: Message):
-    rows = await db.fetch_all(
-        "SELECT id, date, topic_code, stream_id FROM session_days ORDER BY date DESC LIMIT 20"
+    _, _, _, sess_id_str, user_id_str = cq.data.split(":")
+    session_id = int(sess_id_str)
+    user_id = int(user_id_str)
+    log.debug("[TOGGLE] session_id=%s user_id=%s", session_id, user_id)
+
+    marks = _attendance_map(session_id)
+    curr = marks.get(user_id)  # None|'present'|'absent'|'expelled'
+    nxt = (
+        "present" if curr is None else
+        "absent" if curr == "present" else
+        "expelled" if curr == "absent" else
+        None
     )
-    if not rows:
-        await message.answer("Нет занятий в базе.")
-        return
+    log.debug("[TOGGLE] current=%s next=%s", curr, nxt)
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=f"{r[1]} • {r[2] or '-'} • Stream:{r[3]}",
-            callback_data=f"hw_sess:{r[0]}")]
-        for r in rows
-    ])
-    await message.answer("📚 Выберите занятие для рассылки ДЗ:", reply_markup=kb)
+    if nxt is None:
+        with get_db_connection() as con:
+            con.execute("DELETE FROM attendance WHERE user_id = ? AND session_id = ?",
+                        (user_id, session_id))
+            con.commit()
+        msg = "Отметка сброшена"
+    else:
+        _upsert_attendance(user_id, session_id, nxt, noted_by=cq.from_user.id)
+        msg = {"present": "✅ присутствовал", "absent": "❌ отсутствовал",
+               "expelled": "⛔️ отчислен"}[nxt]
 
-
-@router.callback_query(F.data.startswith("hw_sess:"))
-async def request_homework_link(cb: CallbackQuery):
-    session_id = int(cb.data.split(":")[1])
-    await cb.message.edit_text(
-        f"Вставьте ссылку на ДЗ для занятия SID={session_id}:\n"
-        f"Используйте команду:\n"
-        f"/homework_send {session_id} <ссылка_на_ЯндексДиск>"
+    sd = _session_day_by_id(session_id)
+    users = _users_of_stream(int(sd["stream_id"])) if sd else []
+    new_marks = _attendance_map(session_id)
+    await cq.message.edit_reply_markup(
+        reply_markup=attendance_users_kb(session_id, users, new_marks).as_markup()
     )
-    await cb.answer()
+    await cq.answer(msg)
 
 
-@router.message(F.text.startswith("/homework_send"))
-async def send_homework(message: Message):
-    parts = message.text.split(maxsplit=2)
-    if len(parts) < 3:
-        await message.answer("⚠️ Используй: /homework_send <session_id> <ссылка>")
-        return
+# --- back ------------------------------------------------------------
 
-    session_id = int(parts[1])
-    link = parts[2]
-
-    await attendance.ensure_homework_delivery_table()
-
-    # только тем, кто был present и ещё не получал материалы
-    user_ids = await attendance.get_not_yet_delivered(session_id)
-    if not user_ids:
-        await message.answer("👌 Все присутствовавшие уже получили материалы.")
-        return
-
-    ok = fail = 0
-    for uid in user_ids:
-        try:
-            # Можно использовать и message.bot, но здесь у нас импортирован глобальный bot.
-            await bot.send_message(uid, f"📚 Домашнее задание по занятию {session_id}:\n{link}")
-            await attendance.mark_homework_delivered(session_id, uid, link)
-            ok += 1
-        except Exception as e:
-            fail += 1
-            await message.answer(f"⚠️ {uid}: {e}")
-
-    await message.answer(f"📤 ДЗ отправлено: {ok}; ошибок: {fail}")
+@router.callback_query(F.data == "admin:back")
+async def admin_back(cq: CallbackQuery):
+    await cq.answer()
+    await open_admin_menu(cq.message)

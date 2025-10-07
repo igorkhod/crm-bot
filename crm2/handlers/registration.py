@@ -1,239 +1,183 @@
 # crm2/handlers/registration.py
 from __future__ import annotations
 
+from typing import Optional
+
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 
-from crm2.keyboards import guest_start_kb
-from crm2.db.users import get_user_by_nickname, upsert_user
-from crm2.db.users import get_user_by_tg
+from crm2.services.users import (
+    get_user_by_telegram,
+    set_plain_user_field_by_tg,
+    upsert_participant_by_tg,
+)
 
 router = Router(name="registration")
 
-# Для совместимости со старыми инлайн-кнопками (если где-то остались)
-REG_START = "registration:start"
-
-
-class RegistrationFSM(StatesGroup):
+# ───────────────────────── FSM ─────────────────────────
+class EditField(StatesGroup):
     nickname = State()
     password = State()
     full_name = State()
     phone = State()
     email = State()
-    review = State()
 
+# ───────────────────────── Клавиатуры ─────────────────────────
+def _edit_kb() -> ReplyKeyboardMarkup:
+    rows = [
+        [KeyboardButton(text="Никнейм"), KeyboardButton(text="Пароль")],
+        [KeyboardButton(text="ФИО"), KeyboardButton(text="Телефон")],
+        [KeyboardButton(text="Email"), KeyboardButton(text="Поток")],
+        [KeyboardButton(text="💾 Сохранить")],
+    ]
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
-# ───────────────────────────────────────────────────────────────────────────────
-# СТАРТ РЕГИСТРАЦИИ (reply-кнопка «Зарегистрироваться» или старый inline)
-# ───────────────────────────────────────────────────────────────────────────────
-@router.message(F.text.contains("Зарегистрироваться"))
-async def start_registration_msg(message: Message, state: FSMContext):
+def _cohort_inline_kb(current: Optional[int]) -> InlineKeyboardMarkup:
+    def label(n: int) -> str:
+        return f"Поток {n}" + (" ✅" if current == n else "")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=label(1), callback_data="reg:set_cohort:1")],
+        [InlineKeyboardButton(text=label(2), callback_data="reg:set_cohort:2")],
+        [InlineKeyboardButton(
+            text="Сбросить (нет потока)" + (" ✅" if current is None else ""),
+            callback_data="reg:set_cohort:0"
+        )],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="reg:back")],
+    ])
+
+def _user_card(u: dict) -> str:
+    cohort = u.get("cohort_id")
+    cohort_line = f"Поток: {cohort if cohort else 'не указан'}"
+    return (
+        "• Никнейм: {nickname}\n"
+        "• Пароль: {password_mask}\n"
+        "• ФИО: {full_name}\n"
+        "• Телефон: {phone}\n"
+        "• Email: {email}\n"
+        f"• {cohort_line}"
+    ).format(
+        nickname=u.get("nickname") or "—",
+        password_mask="******" if u.get("password") else "—",
+        full_name=u.get("full_name") or "—",
+        phone=u.get("phone") or "—",
+        email=u.get("email") or "—",
+    )
+
+# ───────────────────────── Старт карточки правок ─────────────────────────
+# ВАЖНО: избегаем `Command(...) | F...` — делаем два отдельных хендлера
+
+@router.message(Command("fix"))
+async def show_fix_card_cmd(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await state.set_state(RegistrationFSM.nickname)
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Выберите действие:", reply_markup=_edit_kb())
+    await message.answer(_user_card(u))
+
+@router.message(F.text.func(lambda t: t and t.lower() in {"исправить регистрацию", "исправить", "править"}))
+async def show_fix_card_text(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Выберите действие:", reply_markup=_edit_kb())
+    await message.answer(_user_card(u))
+
+# ───────────────────────── Текстовые поля ─────────────────────────
+@router.message(F.text == "Никнейм")
+async def edit_nickname(message: Message, state: FSMContext):
+    await state.set_state(EditField.nickname)
+    await message.answer("Введите *новый никнейм*:", parse_mode="Markdown")
+
+@router.message(EditField.nickname, F.text)
+async def save_nickname(message: Message, state: FSMContext):
+    set_plain_user_field_by_tg(message.from_user.id, "nickname", message.text.strip())
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Готово. Никнейм обновлён.")
+    await message.answer(_user_card(u), reply_markup=_edit_kb())
+
+@router.message(F.text == "Пароль")
+async def edit_password(message: Message, state: FSMContext):
+    await state.set_state(EditField.password)
+    await message.answer("Введите *новый пароль*:", parse_mode="Markdown")
+
+@router.message(EditField.password, F.text)
+async def save_password(message: Message, state: FSMContext):
+    set_plain_user_field_by_tg(message.from_user.id, "password", message.text.strip())
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Готово. Пароль обновлён.")
+    await message.answer(_user_card(u), reply_markup=_edit_kb())
+
+@router.message(F.text == "ФИО")
+async def edit_full_name(message: Message, state: FSMContext):
+    await state.set_state(EditField.full_name)
+    await message.answer("Введите *ФИО*:", parse_mode="Markdown")
+
+@router.message(EditField.full_name, F.text)
+async def save_full_name(message: Message, state: FSMContext):
+    set_plain_user_field_by_tg(message.from_user.id, "full_name", message.text.strip())
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Готово. ФИО обновлено.")
+    await message.answer(_user_card(u), reply_markup=_edit_kb())
+
+@router.message(F.text == "Телефон")
+async def edit_phone(message: Message, state: FSMContext):
+    await state.set_state(EditField.phone)
+    await message.answer("Введите *телефон*:", parse_mode="Markdown")
+
+@router.message(EditField.phone, F.text)
+async def save_phone(message: Message, state: FSMContext):
+    set_plain_user_field_by_tg(message.from_user.id, "phone", message.text.strip())
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Готово. Телефон обновлён.")
+    await message.answer(_user_card(u), reply_markup=_edit_kb())
+
+@router.message(F.text == "Email")
+async def edit_email(message: Message, state: FSMContext):
+    await state.set_state(EditField.email)
+    await message.answer("Введите *email*:", parse_mode="Markdown")
+
+@router.message(EditField.email, F.text)
+async def save_email(message: Message, state: FSMContext):
+    set_plain_user_field_by_tg(message.from_user.id, "email", message.text.strip())
+    await state.clear()
+    u = get_user_by_telegram(message.from_user.id) or {}
+    await message.answer("Готово. Email обновлён.")
+    await message.answer(_user_card(u), reply_markup=_edit_kb())
+
+# ───────────────────────── Поток ─────────────────────────
+@router.message(F.text == "Поток")
+async def choose_cohort(message: Message):
+    u = get_user_by_telegram(message.from_user.id) or {}
+    current = u.get("cohort_id")
     await message.answer(
-        "Введите никнейм (латиница/цифры, без пробелов):",
-        reply_markup=guest_start_kb(),
+        "Выберите ваш поток:",
+        reply_markup=_cohort_inline_kb(current if isinstance(current, int) else None)
     )
 
+@router.callback_query(F.data.startswith("reg:set_cohort:"))
+async def set_cohort_cb(cq: CallbackQuery):
+    _, _, value = cq.data.split(":", 2)
+    tg_id = cq.from_user.id
+    cohort_id = int(value)
+    set_plain_user_field_by_tg(tg_id, "cohort_id", None if cohort_id == 0 else cohort_id)
+    await upsert_participant_by_tg(tg_id, None if cohort_id == 0 else cohort_id)
+    u = get_user_by_telegram(tg_id) or {}
+    await cq.message.edit_text("Поток обновлён.\n\n" + _user_card(u))
+    await cq.answer("Сохранено ✅")
 
-@router.callback_query(F.data == REG_START)
-async def start_registration_cb(cb: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await state.set_state(RegistrationFSM.nickname)
-    await cb.message.answer(
-        "Введите никнейм (латиница/цифры, без пробелов):",
-        reply_markup=guest_start_kb(),
-    )
-    await cb.answer()
-
-
-# ───────────────────────────────────────────────────────────────────────────────
-# ВСПОМОГАТЕЛЬНЫЕ ХЕЛПЕРЫ
-# ───────────────────────────────────────────────────────────────────────────────
-FIELDS_ORDER = ["nickname", "password", "full_name", "phone", "email"]
-
-
-def _next_missing_field(data: dict) -> str | None:
-    for key in FIELDS_ORDER:
-        if not (data.get(key) or "").strip():
-            return key
-    return None
-
-
-def _mask_pwd(pwd: str | None) -> str:
-    pwd = pwd or ""
-    return "•" * max(4, len(pwd))
-
-
-async def _show_review(message: Message, state: FSMContext) -> None:
-    data = await state.get_data()
-    text = (
-        "Проверьте данные:\n"
-        f"• Никнейм: {data.get('nickname', '—')}\n"
-        f"• Пароль: {_mask_pwd(data.get('password'))}\n"
-        f"• ФИО: {data.get('full_name', '—')}\n"
-        f"• Телефон: {data.get('phone', '—')}\n"
-        f"• Email: {data.get('email', '—')}\n\n"
-        "Нажмите на название поля, чтобы исправить.\n"
-        "Когда всё верно — нажмите «💾 Сохранить»."
-    )
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Никнейм", callback_data="edit:nickname")
-    kb.button(text="Пароль", callback_data="edit:password")
-    kb.button(text="ФИО", callback_data="edit:full_name")
-    kb.button(text="Телефон", callback_data="edit:phone")
-    kb.button(text="Email", callback_data="edit:email")
-    kb.button(text="💾 Сохранить", callback_data="reg:save")
-    kb.adjust(2, 2, 1)
-    await state.set_state(RegistrationFSM.review)
-    await message.answer(text, reply_markup=kb.as_markup())
-
-
-# ───────────────────────────────────────────────────────────────────────────────
-# ПОШАГОВО: никнейм → пароль → ФИО → телефон → email → обзор
-# ───────────────────────────────────────────────────────────────────────────────
-@router.message(RegistrationFSM.nickname)
-async def reg_nickname(message: Message, state: FSMContext):
-    nickname = (message.text or "").strip()
-    if not nickname or " " in nickname:
-        await message.answer("Никнейм не должен содержать пробелов. Укажите другой:", reply_markup=guest_start_kb())
-        return
-    # Проверка на уникальность
-    exist = get_user_by_nickname(nickname)
-    if exist and exist.get("telegram_id") not in (None, message.from_user.id):
-        await message.answer("Такой ник уже занят. Укажите другой никнейм:", reply_markup=guest_start_kb())
-        return
-
-    await state.update_data(nickname=nickname)
-    await state.set_state(RegistrationFSM.password)
-    await message.answer("Введите пароль (не менее 4 символов):", reply_markup=guest_start_kb())
-
-
-@router.message(RegistrationFSM.password)
-async def reg_password(message: Message, state: FSMContext):
-    password = (message.text or "").strip()
-    if len(password) < 4:
-        await message.answer("Короткий пароль. Введите пароль длиной от 4 символов:", reply_markup=guest_start_kb())
-        return
-
-    await state.update_data(password=password)
-    await state.set_state(RegistrationFSM.full_name)
-    await message.answer("Введите ваше ФИО:", reply_markup=guest_start_kb())
-
-
-@router.message(RegistrationFSM.full_name)
-async def reg_full_name(message: Message, state: FSMContext):
-    full_name = (message.text or "").strip()
-    if len(full_name) < 2:
-        await message.answer("Имя слишком короткое. Повторите, пожалуйста:", reply_markup=guest_start_kb())
-        return
-    await state.update_data(full_name=full_name)
-    await state.set_state(RegistrationFSM.phone)
-    await message.answer("Введите ваш номер телефона (+7…):", reply_markup=guest_start_kb())
-
-
-@router.message(RegistrationFSM.phone)
-async def reg_phone(message: Message, state: FSMContext):
-    phone = (message.text or "").strip()
-    if not any(ch.isdigit() for ch in phone):
-        await message.answer("Похоже, это не номер. Введите телефон ещё раз:", reply_markup=guest_start_kb())
-        return
-    await state.update_data(phone=phone)
-    await state.set_state(RegistrationFSM.email)
-    await message.answer("Введите ваш email:", reply_markup=guest_start_kb())
-
-
-@router.message(RegistrationFSM.email)
-async def reg_email(message: Message, state: FSMContext):
-    email = (message.text or "").strip()
-    if "@" not in email or "." not in email:
-        await message.answer("Похоже, это не email. Введите корректный email:", reply_markup=guest_start_kb())
-        return
-    await state.update_data(email=email)
-    await _show_review(message, state)
-
-
-# ───────────────────────────────────────────────────────────────────────────────
-# РЕДАКТИРОВАНИЕ И СОХРАНЕНИЕ (инлайн-кнопки в сообщении со сводкой)
-# ───────────────────────────────────────────────────────────────────────────────
-@router.callback_query(F.data.startswith("edit:"))
-async def on_edit_field(cb: CallbackQuery, state: FSMContext):
-    field = cb.data.split(":", 1)[1]
-    prompts = {
-        "nickname": "Введите никнейм (латиница/цифры, без пробелов):",
-        "password": "Введите пароль (не менее 4 символов):",
-        "full_name": "Введите ваше ФИО:",
-        "phone": "Введите ваш номер телефона (+7…):",
-        "email": "Введите ваш email:",
-    }
-    next_state = {
-        "nickname": RegistrationFSM.nickname,
-        "password": RegistrationFSM.password,
-        "full_name": RegistrationFSM.full_name,
-        "phone": RegistrationFSM.phone,
-        "email": RegistrationFSM.email,
-    }[field]
-    await state.set_state(next_state)
-    await cb.message.answer(prompts[field], reply_markup=guest_start_kb())
-    await cb.answer()
-
-
-@router.callback_query(F.data == "reg:save")
-async def on_save(cb: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    missing = _next_missing_field(data)
-    if missing:
-        await cb.answer("Заполните все поля перед сохранением", show_alert=True)
-        await _show_review(cb.message, state)
-        return
-
-    # Сохраняем в существующие поля таблицы users — без новых сущностей
-    upsert_user(
-        telegram_id=cb.from_user.id,
-        username=cb.from_user.username,
-        full_name=data.get("full_name", ""),
-        phone=data.get("phone", ""),
-        email=data.get("email", ""),
-        nickname=data.get("nickname", ""),
-        password=data.get("password", ""),
-        role="user",
-        cohort_id=None,
-    )
-    await state.clear()
-    await cb.message.answer("✅ Данные сохранены. Теперь можно войти через «Войти».", reply_markup=guest_start_kb())
-    await cb.answer("Сохранено")
-
-
-# ...оставшийся код регистрации (FSM, _show_review и т.д.)
-
-@router.callback_query(F.data == "reg:review")
-async def reg_open_review(cb: CallbackQuery, state: FSMContext):
-    """Открыть карточку регистрации со сводкой полей из БД."""
-    u = get_user_by_tg(cb.from_user.id) or {}
-    # заполняем FSM текущими значениями (никаких новых полей)
-    await state.update_data(
-        nickname=(u.get("nickname") or "").strip(),
-        password=(u.get("password") or "").strip(),  # может быть хэш — показываем как «••••»
-        full_name=u.get("full_name") or "",
-        phone=u.get("phone") or "",
-        email=u.get("email") or "",
-    )
-    await _show_review(cb.message, state)
-    await cb.answer()
-
-# (опционально, чтобы работать и по текстовой кнопке,
-# если ты потом добавишь её в reply-клавиатуру гости)
-@router.message(F.text.contains("Исправить") & F.text.contains("регистрац"))
-async def reg_open_review_text(message: Message, state: FSMContext):
-    u = get_user_by_tg(message.from_user.id) or {}
-    await state.update_data(
-        nickname=(u.get("nickname") or "").strip(),
-        password=(u.get("password") or "").strip(),
-        full_name=u.get("full_name") or "",
-        phone=u.get("phone") or "",
-        email=u.get("email") or "",
-    )
-    await _show_review(message, state)
+@router.callback_query(F.data == "reg:back")
+async def back_from_inline(cq: CallbackQuery):
+    await cq.message.delete()
+    await cq.answer()

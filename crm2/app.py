@@ -2,13 +2,51 @@
 from __future__ import annotations
 
 import asyncio
+# вверху файла рядом с остальными импортами
+import contextlib
 import logging
 import os
+import pathlib
+import sqlite3
 from contextlib import suppress
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
-from crm2.bot import bot, dp  # ✅ берём готовые экземпляры
 
+
+# ----------------- ENV -----------------
+def _load_env():
+    """
+    Приоритет:
+    1) Если задан ENV_FILE и файл существует — грузим его.
+    2) Иначе ищем рядом с корнем проекта: .env.local -> .env -> .env.prod.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    env_file = os.getenv("ENV_FILE")
+    if env_file and pathlib.Path(env_file).exists():
+        load_dotenv(env_file, override=False)
+        return
+    for cand in (".env.local", ".env", ".env.prod"):
+        p = root / cand
+        if p.exists():
+            load_dotenv(p, override=False)
+            return
+
+
+# Загружаем окружение до импорта бота
+_load_env()
+
+# Для отладки печатаем первые символы токена
+for key in ("BOT_TOKEN", "TELEGRAM_TOKEN"):
+    val = os.getenv(key)
+    if val:
+        print(f"{key} = {val[:5]}*****")
+    else:
+        print(f"{key} = <не найден>")
+
+from crm2.bot import bot, dp  # теперь окружение уже прогружено
+
+# ----------------- FASTAPI -----------------
 app = FastAPI(title="crm2")
 
 
@@ -17,6 +55,16 @@ async def health():
     return {"ok": True}
 
 
+# ...после импорта bot, dp и загрузки .env:
+ADMIN_ID = os.getenv("ADMIN_ID")
+try:
+    ADMIN_ID = int(ADMIN_ID) if ADMIN_ID else None
+except ValueError:
+    ADMIN_ID = None
+    logging.warning("ADMIN_ID в .env некорректный (не число) — оповещение в Telegram отключено.")
+
+
+# ----------------- ROUTERS -----------------
 def _try_include(module_path: str, attr: str = "router"):
     """Пытаемся подключить роутер модуля, пишем в лог результат."""
     try:
@@ -30,16 +78,46 @@ def _try_include(module_path: str, attr: str = "router"):
         logging.getLogger().exception("[ROUTER:fail] %s: %s", module_path, e)
 
 
-async def _runner():
-    # ---- здесь перечисляем все хэндлеры ----
-    _try_include("crm2.handlers.admin.panel")        # ✅ админ-панель (если файл: crm2/handlers/admin/panel.py)
-    _try_include("crm2.handlers.admin_attendance")   # ✅ посещаемость + ДЗ
-    # Админ: посещаемость и домашние задания
-    _try_include("crm2.handlers.admin_attendance")
-    _try_include("crm2.handlers.admin_homework")  # если создашь отдельный модуль
-    # _try_include("crm2.handlers.admin_homework")   # если вынесешь ДЗ в отдельный модуль
+# добавь ниже функции _try_include(...) вот эти два коллбека
+async def _on_startup():
+    if ADMIN_ID:
+        with contextlib.suppress(Exception):
+            await bot.send_message(ADMIN_ID, "🚀 Бот запущен и готов к работе!")
 
-    # Остальные твои хэндлеры:
+
+async def _on_shutdown():
+    if ADMIN_ID:
+        with contextlib.suppress(Exception):
+            await bot.send_message(ADMIN_ID, "⛔️ Бот остановлен.")
+
+
+# ----------------- DB TEST -----------------
+def _test_db():
+    """Пробуем открыть crm.db и выполнить SELECT 1."""
+    db_path = pathlib.Path(__file__).resolve().parent / "data" / "crm.db"
+    if not db_path.exists():
+        logging.warning(f"[DB] Файл базы {db_path} не найден")
+        return
+    try:
+        con = sqlite3.connect(db_path)
+        cur = con.cursor()
+        cur.execute("SELECT 1")
+        res = cur.fetchone()
+        logging.info(f"[DB] Подключение успешно, SELECT 1 -> {res}")
+        con.close()
+    except Exception as e:
+        logging.exception(f"[DB] Ошибка при подключении: {e}")
+
+
+# ----------------- RUNNER -----------------
+async def _runner():
+    # проверка базы перед стартом
+    _test_db()
+
+    # ---- перечисляем хэндлеры ----
+    _try_include("crm2.handlers.admin.panel")
+    _try_include("crm2.handlers.admin_attendance")
+    _try_include("crm2.handlers.admin_homework")
     _try_include("crm2.handlers.admin_users")
     _try_include("crm2.handlers.admin_db")
     _try_include("crm2.handlers_schedule")
@@ -53,10 +131,23 @@ async def _runner():
     _try_include("crm2.handlers.start")
     _try_include("crm2.handlers.welcome")
 
-    logging.getLogger().warning("[BUILD] starting application")
-    await dp.start_polling(bot)
+    # должно быть — передаём сами async-функции
+    dp.startup.register(_on_startup)
+    dp.shutdown.register(_on_shutdown)
+
+    logging.warning("[BUILD] starting application")
+
+    try:
+        logging.info("🚀 Бот запущен и готов к работе!")
+        await dp.start_polling(bot)
+    except Exception as e:
+        logging.exception("❌ Ошибка в работе бота: %s", e)
+    finally:
+        await bot.session.close()
+        logging.info("⛔️ Бот остановлен.")
 
 
+# ----------------- MAIN -----------------
 def main():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     with suppress(KeyboardInterrupt):

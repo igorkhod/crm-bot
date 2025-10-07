@@ -1,28 +1,22 @@
 # crm2/keyboards/admin_panel.py
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-def admin_panel_kb() -> InlineKeyboardMarkup:
+def admin_panel_kb() -> ReplyKeyboardMarkup:
     """
-    Главное меню админ-панели.
-    Кнопки сгруппированы по блокам: пользователи, расписание, посещаемость,
-    домашние задания, рассылка, логи, диагностика.
+    Админ-панель как ReplyKeyboard.
+    Тексты кнопок совпадают с тем, что ловят хендлеры по F.text
+    (например: "📋 Посещаемость", "📚 Домашние задания").
     """
     rows = [
-        [
-            InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users"),
-            InlineKeyboardButton(text="🗓 Расписание",  callback_data="adm:schedule"),
-        ],
-        [
-            InlineKeyboardButton(text="📋 Посещаемость",     callback_data="adm:attendance"),
-            InlineKeyboardButton(text="📚 Домашние задания", callback_data="adm:homework"),
-        ],
-        [
-            InlineKeyboardButton(text="📣 Рассылка", callback_data="adm:broadcast"),
-            InlineKeyboardButton(text="🧾 Логи",     callback_data="adm:logs"),
-        ],
-        [
-            InlineKeyboardButton(text="🩺 DB Doctor",    callback_data="adm:dbdoctor"),
-            InlineKeyboardButton(text="🤖 ChatGPT",      callback_data="adm:chatgpt_status"),
-        ],
+        [KeyboardButton(text="👥 Пользователи"), KeyboardButton(text="📅 Расписание")],
+        [KeyboardButton(text="📋 Посещаемость"), KeyboardButton(text="📚 Домашние задания")],
+        [KeyboardButton(text="📢 Рассылка"), KeyboardButton(text="🧾 Логи")],
+        [KeyboardButton(text="🩺 DB Doctor"), KeyboardButton(text="🧠 ChatGPT")],
+        [KeyboardButton(text="⬅️ Назад")],
     ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return ReplyKeyboardMarkup(
+        keyboard=rows,
+        resize_keyboard=True,
+        input_field_placeholder="Выберите действие…",
+        is_persistent=True,
+    )

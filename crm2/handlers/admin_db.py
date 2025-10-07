@@ -14,6 +14,8 @@ from aiogram.types import Message
 
 from crm2.db.sqlite import DB_PATH
 
+# Центральный роутер этого модуля; подключается из app.py через безопасный include.
+
 router = Router(name="admin_db")
 
 

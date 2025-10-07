@@ -1,104 +1,133 @@
-# === Автогенерированный заголовок: crm2/handlers/profile.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: _get_user_row, show_profile, toggle_notify, my_materials
-# === Конец автозаголовка
 # crm2/handlers/profile.py
 from __future__ import annotations
 
+import logging
 from aiogram import Router, F
-from aiogram.types import Message
-import sqlite3
+from aiogram.types import Message, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from crm2.db.sqlite import DB_PATH
-from crm2.keyboards.profile import profile_menu_kb
-from crm2.keyboards import role_kb, guest_start_kb
-from crm2.db.sessions import get_upcoming_sessions, get_user_cohort_title_by_tg
-from crm2.db.attendance import get_last_attendance, get_summary
+# ... твои импорт(ы) БД/сервисов остаются как есть ...
 
-router = Router(name="profile")
+router = Router()
 
-def _get_user_row(tg_id: int):
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        return con.execute(
-            "SELECT id, full_name, nickname, role FROM users WHERE telegram_id=? LIMIT 1",
-            (tg_id,),
-        ).fetchone()
+# ----------------------------------------------------------------------
+# Универсальные помощники
+
+def _extract_ids(obj: Message | CallbackQuery) -> tuple[int, int]:
+    """
+    Возвращает (chat_id, user_id) для Message или CallbackQuery.
+    Никогда не создаёт «поддельные» Message.
+    """
+    if isinstance(obj, CallbackQuery):
+        chat_id = obj.message.chat.id
+        user_id = obj.from_user.id
+    else:
+        chat_id = obj.chat.id
+        user_id = obj.from_user.id
+    return chat_id, user_id
+
+
+def _profile_kb() -> InlineKeyboardBuilder:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🛠 Установить поток", callback_data="profile:set_stream")
+    kb.button(text="🔔 Уведомления: вкл/выкл", callback_data="profile:toggle_notify")
+    kb.button(text="🏠 В главное меню", callback_data="profile:back_main")
+    kb.adjust(1, 1, 1)
+    return kb
+# ----------------------------------------------------------------------
+
 
 @router.message(F.text == "👤 Личный кабинет")
-async def show_profile(message: Message):
-    tg_id = message.from_user.id
-    row = _get_user_row(tg_id)
+async def profile_entry(message: Message):
+    await show_profile(message)
 
-    if not row:
-        # гость
-        await message.answer(
-            "Вы пока гость. Войдите или зарегистрируйтесь, чтобы открыть личный кабинет.",
-            reply_markup=guest_start_kb(),
-        )
-        return
 
-    uid = row["id"]
-    role = row["role"] or "user"
-    fio = row["full_name"] or message.from_user.full_name or (row["nickname"] or "")
-    cohort_id, cohort_title = get_user_cohort_title_by_tg(tg_id)
+async def show_profile(obj: Message | CallbackQuery):
+    """
+    Показывает карточку профиля. Теперь принимает и Message, и CallbackQuery.
+    """
+    chat_id, tg_id = _extract_ids(obj)
 
-    # ближайшее занятие для конкретного пользователя (с его потоком, если он есть)
-    nearest = None
-    upc = get_upcoming_sessions(limit=1, tg_id=tg_id)
-    if upc:
-        s = upc[0]
-        d1, d2 = s["start_date"], s["end_date"]
-        code = (s.get("topic_code") or "").strip()
-        dates = f"{d1} — {d2}" if (d1 and d2 and d1 != d2) else (d1 or d2 or "—")
-        nearest = f"{dates}" + (f" • {code}" if code else "")
-
-    # посещаемость: суммарно и последние 3 записи
-    present, absent, late = get_summary(uid)
-    last3 = get_last_attendance(uid, limit=3)
-    if last3:
-        last_lines = "\n".join([f"• #{sid}: {st} ({at})" for (sid, st, at) in last3])
-    else:
-        last_lines = "• записей пока нет"
+    # --- тут твоя логика загрузки пользователя/статистики ---
+    # пример:
+    # user = get_user_by_telegram(tg_id)
+    # next_lesson = ...
+    # attendance_stats = ...
 
     text = (
         "👤 *Личный кабинет*\n\n"
-        f"*ФИО:* {fio}\n"
-        f"*Роль:* {role}\n"
-        f"*Поток:* {cohort_title or 'Без потока'}\n"
-        f"*Ближайшее занятие:* {nearest or '—'}\n\n"
-        f"*Посещаемость:*\n"
-        f"Был: {present} · Пропустил: {absent} · Опоздал: {late}\n"
-        f"_Последние записи:_\n{last_lines}\n\n"
-        "Раздел «Мои материалы» — скоро."
+        f"TG ID: `{tg_id}`\n"
+        # Дополни данными из БД:
+        # f"ФИО: {user.full_name}\n"
+        # f"Роль: {user.role}\n"
+        # f"Поток: {stream_title}\n"
+        # f"Ближайшее занятие: {next_lesson}\n"
+        "\nВы можете установить/изменить свой поток."
     )
-    await message.answer(text, parse_mode="Markdown", reply_markup=profile_menu_kb())
 
-@router.message(F.text == "🔔 Уведомления: вкл/выкл")
-async def toggle_notify(message: Message):
-    # переключатель user_flags.notify_enabled
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        u = con.execute("SELECT id FROM users WHERE telegram_id=? LIMIT 1", (message.from_user.id,)).fetchone()
-        if not u:
-            await message.answer("Для переключения уведомлений войдите в систему.", reply_markup=guest_start_kb())
-            return
-        uid = u["id"]
-        # текущее значение
-        r = con.execute("SELECT notify_enabled FROM user_flags WHERE user_id=? LIMIT 1", (uid,)).fetchone()
-        cur = (r["notify_enabled"] if r else 1)
-        nxt = 0 if cur else 1
-        if r:
-            con.execute("UPDATE user_flags SET notify_enabled=? WHERE user_id=?", (nxt, uid))
-        else:
-            con.execute("INSERT INTO user_flags(user_id, notify_enabled) VALUES (?, ?)", (uid, nxt))
-        con.commit()
+    # Отвечаем в зависимости от источника
+    if isinstance(obj, CallbackQuery):
+        # При коллбэке корректно редактировать *предыдущее* сообщение
+        await obj.message.edit_text(text, reply_markup=_profile_kb().as_markup(), parse_mode="Markdown")
+        await obj.answer()
+    else:
+        await obj.answer(text, reply_markup=_profile_kb().as_markup(), parse_mode="Markdown")
 
-    await message.answer(f"Уведомления: {'включены' if nxt else 'выключены'}")
 
-@router.message(F.text == "📄 Мои материалы")
-async def my_materials(message: Message):
-    # пока заглушка
-    await message.answer("Мои материалы: скоро здесь появится список новых PDF/ссылок.")
+# =======================
+# Установка потока
+# =======================
+
+@router.callback_query(F.data == "profile:set_stream")
+async def ask_stream(cq: CallbackQuery):
+    # Покажи выбор потоков (пример на двух потоках)
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Поток 1", callback_data="profile:set_stream:1")
+    kb.button(text="Поток 2", callback_data="profile:set_stream:2")
+    kb.button(text="⬅️ Назад", callback_data="profile:back")
+    kb.adjust(2, 1)
+    await cq.message.edit_text("Выберите свой поток:", reply_markup=kb.as_markup())
+    await cq.answer()
+
+
+@router.callback_query(F.data.startswith("profile:set_stream:"))
+async def set_stream_cb(cq: CallbackQuery):
+    # Получаем выбранный поток из callback_data
+    try:
+        stream_id = int(cq.data.split(":")[-1])
+    except Exception:
+        logging.exception("[PROFILE] Некорректный stream_id в callback_data=%r", cq.data)
+        await cq.answer("Некорректный поток", show_alert=True)
+        return
+
+    # chat_id/tg_id реальны — берём напрямую из CallbackQuery
+    _, tg_id = _extract_ids(cq)
+
+    # --- тут сохрани stream_id в БД для пользователя tg_id ---
+    # пример:
+    # user = get_user_by_telegram(tg_id)
+    # update_user_stream(user.id, stream_id)
+
+    await cq.answer("Поток сохранён 👍")
+    # И просто показываем профиль заново (без «поддельных» Message):
+    await show_profile(cq)
+
+
+@router.callback_query(F.data == "profile:back")
+async def profile_back(cq: CallbackQuery):
+    await show_profile(cq)
+
+
+@router.callback_query(F.data == "profile:back_main")
+async def profile_back_main(cq: CallbackQuery):
+    # если у тебя есть клавиатура главного меню — подставь её
+    from crm2.keyboards import main_menu_kb  # пример импорта
+    await cq.message.edit_text("Меню:", reply_markup=main_menu_kb())  # или .answer(...)
+    await cq.answer()
+
+
+@router.callback_query(F.data == "profile:toggle_notify")
+async def toggle_notify(cq: CallbackQuery):
+    # переключи флаг в БД ...
+    await cq.answer("Готово")
+    await show_profile(cq)
