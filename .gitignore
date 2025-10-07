@@ -23,6 +23,10 @@ Thumbs.db
 .env.local
 .env.prod
 *.env
+
+# Исключение для шаблона
+!.env.example
+
 config.ini
 secrets.json
 crm2.db
