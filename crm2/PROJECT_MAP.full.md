@@ -1,18 +1,23 @@
 # PROJECT_MAP.full.md — автогенерация
-> Обновлено: Wed Sep 24 09:30:37 UTC 2025
+> Обновлено: Tue Oct  7 05:27:58 UTC 2025
 
 ## 📂 Структура файлов
 ### handlers
+- `crm2/handlers/__init__.py`
 - `crm2/handlers/about.py`
+- `crm2/handlers/admin/__init__.py`
+- `crm2/handlers/admin/admin_homework.py`
 - `crm2/handlers/admin/broadcast.py`
 - `crm2/handlers/admin/chatgpt.py`
 - `crm2/handlers/admin/logs.py`
 - `crm2/handlers/admin/panel.py`
 - `crm2/handlers/admin/schedule.py`
+- `crm2/handlers/admin/stream_fix.py`
 - `crm2/handlers/admin/users.py`
 - `crm2/handlers/admin_attendance.py`
 - `crm2/handlers/admin_db.py`
 - `crm2/handlers/admin_db_doctor.py`
+- `crm2/handlers/admin_homework.py`
 - `crm2/handlers/admin_users.py`
 - `crm2/handlers/attendance.py`
 - `crm2/handlers/auth.py`
@@ -22,6 +27,7 @@
 - `crm2/handlers/profile.py`
 - `crm2/handlers/registration.py`
 - `crm2/handlers/start.py`
+- `crm2/handlers/stream_selfset.py`
 - `crm2/handlers/welcome.py`
 ### db
 - `crm2/db/__init__.py`
@@ -40,8 +46,10 @@
 - `crm2/db/users_repo.py`
 ### services
 - `crm2/services/attendance.py`
+- `crm2/services/attendance2.py`
 - `crm2/services/chatgpt_status.py`
 - `crm2/services/content_loader.py`
+- `crm2/services/participants.py`
 - `crm2/services/schedule.py`
 - `crm2/services/services.py`
 - `crm2/services/users.py`
@@ -61,15 +69,13 @@
 - `crm2/keyboards/session_picker.py`
 
 ## ⚙️ Переменные окружения (.env.example)
-- `TELEGRAM_TOKEN=ваш_токен_бота`
-- `ADMIN_ID=ваш_telegram_id_цифрами  # например 448124106`
-- `LOG_LEVEL=INFO  # DEBUG | INFO | WARNING | ERROR`
-- `TELEGRAM_TOKEN=82866_сокращено безопасностью`
-- `WEATHER_API_KEY=55449_сокращено безопасностью`
-- `ADMIN_ID=44812_сокращено безопасностью`
-- `IGOR_KHOD_DEEPSEEK_API_KEY=sk-76422_сокращено безопасностью`
-- `IGOR_OPENAI_API=sk-proj_сокращено безопасностью`
-- `DEBUG_FULL_EXIT=1`
+- `BOT_TOKEN=1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`
+- `ADMIN_ID=123456789`
+- `WEATHER_API_KEY=your_openweather_api_key_here`
+- `IGOR_KHOD_DEEPSEEK_API_KEY=sk-your-deepseek-key-here`
+- `IGOR_OPENAI_API=sk-proj-your-openai-key-here`
+- `LOG_LEVEL=INFO`
+- `DEBUG_FULL_EXIT=0`
 - `NOTIFY_STARTUP=1`
 - `NOTIFY_SHUTDOWN=1`
 
