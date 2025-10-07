@@ -19,9 +19,35 @@ Thumbs.db
 
 # App artifacts
 .env
+.env.*
+.env.local
+.env.prod
+*.env
+config.ini
+secrets.json
 crm2.db
 *.sqlite
 *.sqlite3
 logs/
 
+# Archives
 *.zip
+*.rar
+*.tar.gz
+
+# Database backups
+*.db-journal
+*.db-shm
+*.db-wal
+crm2/data/*.db
+data/*.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
