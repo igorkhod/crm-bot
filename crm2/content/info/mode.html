@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Порядок проведения занятий по психонетике</title>
+  <style>
+    :root { --fg:#0f172a; --muted:#475569; --bg:#ffffff; --accent:#2563eb; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg:#e5e7eb; --muted:#9ca3af; --bg:#0b1020; --accent:#60a5fa; }
+    }
+    html { color-scheme: light dark; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+    body {
+      margin:0; background:var(--bg); color:var(--fg);
+      font-size: clamp(16px, 1.2vw + 0.2rem, 19px);
+      line-height: 1.65;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    main.wrap { max-width: 860px; margin:24px auto; padding: clamp(12px, 3vw, 24px); }
+    p, li, blockquote { overflow-wrap:anywhere; word-wrap:break-word; hyphens:auto; }
+    a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+    h1{ font-size:clamp(1.6rem,3vw + .4rem,2rem); line-height:1.25; margin:1rem 0 .6rem; }
+    h2{ font-size:clamp(1.3rem,2.2vw + .4rem,1.6rem); line-height:1.28; margin:1rem 0 .5rem; }
+    h3{ font-size:clamp(1.15rem,1.6vw + .4rem,1.35rem); line-height:1.3; margin:.9rem 0 .5rem; }
+    img, video { max-width:100%; height:auto; }
+    table { width:100%; border-collapse:collapse; overflow:auto; display:block; }
+    th, td { padding:.5em; border-bottom:1px solid rgba(148,163,184,.35); }
+    pre, code, kbd { background: rgba(148,163,184,.15); border-radius:.35em; }
+    pre { padding:12px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+    code, kbd { padding:.15em .35em; }
+    hr { border:none; border-top:1px solid rgba(148,163,184,.35); margin:1.5em 0; }
+    @supports (text-wrap: balance){ h1,h2{text-wrap:balance;} }
+    @media (max-width:360px){ body{ font-size:15px; } }
+    @media (min-width:1200px){ main.wrap{ max-width:940px; } }
+
+    .font-controls{ position:fixed; right:20px; bottom:20px; display:flex; gap:10px; z-index:1000; }
+    .font-controls button{ font-size:18px; font-weight:700; padding:8px 12px; border:0; border-radius:6px; background:#007bff; color:#fff; cursor:pointer; }
+    .font-controls button:hover{ background:#0056b3; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>🕰️ Режим проведения занятий</h1>
+
+    <h2>📚 Сессии</h2>
+    <p>Система <strong>Психотехнологии гармонии и Психонетики</strong> построена по <strong>сессионной системе обучения</strong>.</p>
+    <ul>
+      <li>⏱️ Продолжительность: <strong>2 дня</strong></li>
+      <li>📅 Обычно: <strong>суббота – воскресенье</strong></li>
+      <li>🕙 Время: <strong>10:00 – 18:00</strong></li>
+      <li>☕ Перерывы: кофе-брейки + часовой обед</li>
+    </ul>
+    <p>🔄 Интервал между сессиями: <strong>6 недель</strong>.
+    В это время участники получают возможность закрепить материал и подготовиться к следующему этапу.</p>
+
+    <hr/>
+
+    <h2>🤝 Межсессионные занятия</h2>
+    <p>Проводятся <strong>1 раз в неделю</strong> по <strong>2 часа</strong>.</p>
+    <ul>
+      <li>🧘 Основные упражнения</li>
+      <li>🔍 Разбор ошибок и затруднений</li>
+      <li>🏠 Поддержка в выполнении домашних практик</li>
+    </ul>
+    <p>📌 Формат и время согласуются <strong>с группой</strong> для удобства всех участников.</p>
+  </main>
+
+  <div class="font-controls" aria-label="Управление размером шрифта">
+    <button type="button" id="decrease-font" aria-label="Уменьшить шрифт">–</button>
+    <button type="button" id="increase-font" aria-label="Увеличить шрифт">+</button>
+  </div>
+  <script>
+    (function(){
+      const body = document.body;
+      const min = 12, max = 28, step = 1;
+      const getPx = () => parseFloat(getComputedStyle(body).fontSize);
+      let current = parseFloat(localStorage.getItem('fontSize') || '') || getPx();
+
+      function apply(size){
+        current = Math.min(max, Math.max(min, size));
+        body.style.fontSize = current + 'px';
+        localStorage.setItem('fontSize', String(current));
+      }
+      apply(current);
+      document.getElementById('increase-font').addEventListener('click', () => apply(current + step));
+      document.getElementById('decrease-font').addEventListener('click', () => apply(current - step));
+    })();
+  </script>
+</body>
+</html>

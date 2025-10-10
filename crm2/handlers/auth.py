@@ -10,23 +10,23 @@
 
 from __future__ import annotations  # ← это должно быть первым код-оператором
 
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-# ... остальные стандартные импорты ...
-from crm2.keyboards import role_kb  # ← этот импорт переносим НИЖЕ
 import asyncio
 import hmac
 import logging
 import re
 from typing import Optional
 
+from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-
+from aiogram.types import Message, CallbackQuery
 
 from crm2.db.core import get_db_connection
-from crm2.db.sessions import get_user_cohort_title_by_tg
 from crm2.handlers_schedule import send_nearest_session
+# ... остальные стандартные импорты ...
+from crm2.keyboards import role_kb  # ← этот импорт переносим НИЖЕ
+from crm2.services.users import get_user_by_telegram
+from aiogram.filters import Command
 
 router = Router(name="auth")
 
@@ -148,9 +148,24 @@ def _fetch_user_by_credentials(nickname: str, password: str) -> Optional[dict]:
 # -----------------------
 # Хендлеры
 # -----------------------
-@router.message(F.text.in_({"/login", "🔐 Войти"}))
-async def cmd_login(message: Message, state: FSMContext) -> None:
-    await state.clear()
+# Примерная структура обработчика входа
+# @router.message(F.text == "🔐 Войти")
+# async def login_handler(message: Message):
+#     # После успешной авторизации
+#     user = get_user_by_telegram(message.from_user.id)
+#     if user and user.get('nickname') and user.get('password'):
+#         role = user.get("role", "user")
+#         await message.answer(
+#             f"Добро пожаловать, {user.get('full_name', 'друг')}! 👋\n"
+#             f"Вы вошли с ролью: {role}",
+#             reply_markup=role_kb(role)  # Главное меню по роли
+#         )
+
+
+@router.message(F.text == "🔐 Войти")
+async def login_handler(message: Message, state: FSMContext):
+    """Обработчик кнопки Войти - всегда запускает процесс авторизации"""
+    # ВСЕГДА запускаем процесс авторизации, даже если пользователь уже найден
     await state.set_state(LoginSG.nickname)
     await message.answer("Введите ваш никнейм:")
 
@@ -160,6 +175,17 @@ async def login_nickname(message: Message, state: FSMContext) -> None:
     await state.update_data(nickname=_normalize(message.text or ""))
     await state.set_state(LoginSG.password)
     await message.answer("Введите пароль:")
+
+
+# Добавьте эту функцию перед login_from_inline
+@router.message(Command("login"))
+async def cmd_login(message: Message, state: FSMContext) -> None:
+    """Обработчик команды /login"""
+    await state.set_state(LoginSG.nickname)
+    await message.answer("Введите ваш никнейм:")
+
+# И добавьте импорт Command в начало файла:
+from aiogram.filters import Command
 
 
 @router.callback_query(F.data == "login:start")

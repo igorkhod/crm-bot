@@ -1,0 +1,244 @@
+база данных
+crm.db
+--------------------------------------------
+sqlite> .tables
+assignments           events                session_days        
+attendance            healing_sessions      sessions            
+broadcast_recipients  homework_delivery     streams             
+broadcasts            materials             topics              
+cohorts               participants          user_flags          
+consents              payments              users               
+sqlite> .schema session_days
+CREATE TABLE session_days (
+                id INTEGER PRIMARY KEY,
+                date TEXT NOT NULL,        -- YYYY-MM-DD
+                stream_id INTEGER,
+                topic_id INTEGER,
+                topic_code TEXT,
+                UNIQUE(date, stream_id)
+            );
+CREATE UNIQUE INDEX ux_session_days_unique
+ON session_days(date, topic_code, stream_id);
+sqlite> .schema users
+CREATE TABLE users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER UNIQUE,
+                username     TEXT,
+                nickname     TEXT UNIQUE,
+                password     TEXT,
+                full_name    TEXT,
+                role         TEXT DEFAULT 'user',
+                phone        TEXT,
+                email        TEXT,
+                events       TEXT,
+                participants TEXT,
+                cohort_id    INTEGER
+            );
+sqlite> .schema participants
+CREATE TABLE participants (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER UNIQUE,
+                cohort_id  INTEGER,
+                stream_id  INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+sqlite> .schema attendance
+CREATE TABLE attendance (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            session_id  INTEGER NOT NULL,
+            status      TEXT NOT NULL CHECK (status IN ('present','absent','late')),
+            noted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+            noted_by    INTEGER
+        );
+CREATE INDEX idx_attendance_user ON attendance(user_id, session_id);
+CREATE UNIQUE INDEX idx_attendance_user_session
+ON attendance(user_id, session_id);
+CREATE UNIQUE INDEX ux_attendance_user_session
+  ON attendance(user_id, session_id);
+sqlite> .schema homework_delivery
+CREATE TABLE homework_delivery (
+                id       INTEGER PRIMARY KEY,
+                session_id INTEGER NOT NULL,
+                user_id    INTEGER NOT NULL,
+                link       TEXT NOT NULL,
+                sent_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                sent_by    INTEGER,
+                UNIQUE(session_id, user_id)
+            );
+CREATE INDEX idx_hw_session ON homework_delivery(session_id);
+CREATE INDEX idx_hw_user    ON homework_delivery(user_id);
+sqlite> .schema
+CREATE TABLE users (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id  INTEGER UNIQUE,
+                username     TEXT,
+                nickname     TEXT UNIQUE,
+                password     TEXT,
+                full_name    TEXT,
+                role         TEXT DEFAULT 'user',
+                phone        TEXT,
+                email        TEXT,
+                events       TEXT,
+                participants TEXT,
+                cohort_id    INTEGER
+            );
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE cohorts (
+                id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            );
+CREATE TABLE participants (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER UNIQUE,
+                cohort_id  INTEGER,
+                stream_id  INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+CREATE TABLE streams (
+            id    INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL
+        );
+CREATE TABLE consents (
+            telegram_id INTEGER PRIMARY KEY,
+            given       INTEGER NOT NULL DEFAULT 0,
+            ts          TEXT    DEFAULT CURRENT_TIMESTAMP
+        );
+CREATE TABLE topics (
+                id INTEGER PRIMARY KEY,
+                code TEXT UNIQUE,
+                title TEXT,
+                annotation TEXT
+            );
+CREATE TABLE session_days (
+                id INTEGER PRIMARY KEY,
+                date TEXT NOT NULL,        -- YYYY-MM-DD
+                stream_id INTEGER,
+                topic_id INTEGER,
+                topic_code TEXT,
+                UNIQUE(date, stream_id)
+            );
+CREATE TABLE materials (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body  TEXT,
+          tg_file_id TEXT,        -- document/photo/audio/video as file_id
+          mime TEXT,
+          created_by INTEGER,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+CREATE TABLE assignments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body  TEXT,
+          material_id INTEGER,
+          due_date TEXT,          -- ISO (YYYY-MM-DD)
+          created_by INTEGER,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+CREATE TABLE broadcasts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          body  TEXT,
+          attachment_file_id TEXT,
+          attachment_mime TEXT,
+          audience TEXT NOT NULL,     -- 'all' | 'cohort'
+          cohort_id INTEGER,          -- если audience='cohort'
+          created_by INTEGER,
+          scheduled_at TEXT,          -- NULL => сразу
+          sent_at TEXT,
+          status TEXT DEFAULT 'pending',  -- pending|sending|done|error
+          stats_json TEXT
+        );
+CREATE TABLE broadcast_recipients (
+          broadcast_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          status TEXT DEFAULT 'queued',  -- queued|sent|failed
+          error TEXT,
+          sent_at TEXT,
+          PRIMARY KEY (broadcast_id, user_id)
+        );
+CREATE UNIQUE INDEX ux_session_days_unique
+ON session_days(date, topic_code, stream_id);
+CREATE TABLE sessions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_date  TEXT NOT NULL,          -- YYYY-MM-DD
+            end_date    TEXT,                   -- YYYY-MM-DD (может совпадать со start_date)
+            topic_code  TEXT,                   -- ссылка на topics.code
+            title       TEXT,
+            annotation  TEXT,
+            stream_id   INTEGER                 -- номер потока (1/2/…)
+        , cohort_id INTEGER);
+CREATE INDEX idx_sessions_start ON sessions(start_date);
+CREATE TABLE events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title       TEXT NOT NULL,
+            start_date  TEXT NOT NULL,          -- YYYY-MM-DD
+            end_date    TEXT,                   -- YYYY-MM-DD
+            note        TEXT
+        );
+CREATE INDEX idx_events_start ON events(start_date);
+CREATE TABLE healing_sessions (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            date        TEXT NOT NULL,          -- YYYY-MM-DD
+            time_start  TEXT NOT NULL,          -- HH:MM
+            note        TEXT
+        );
+CREATE INDEX idx_healings_dt ON healing_sessions(date, time_start);
+CREATE TABLE user_flags (
+            user_id         INTEGER PRIMARY KEY,
+            notify_enabled  INTEGER DEFAULT 1
+        );
+CREATE TABLE attendance (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            session_id  INTEGER NOT NULL,
+            status      TEXT NOT NULL CHECK (status IN ('present','absent','late')),
+            noted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+            noted_by    INTEGER
+        );
+CREATE INDEX idx_attendance_user ON attendance(user_id, session_id);
+CREATE TABLE payments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            session_id  INTEGER NOT NULL,
+            paid        INTEGER NOT NULL CHECK (paid IN (0,1)),
+            noted_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+            noted_by    INTEGER
+        );
+CREATE INDEX idx_payments_user ON payments(user_id, session_id);
+CREATE UNIQUE INDEX idx_attendance_user_session
+ON attendance(user_id, session_id);
+CREATE TABLE homework_delivery (
+                id       INTEGER PRIMARY KEY,
+                session_id INTEGER NOT NULL,
+                user_id    INTEGER NOT NULL,
+                link       TEXT NOT NULL,
+                sent_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                sent_by    INTEGER,
+                UNIQUE(session_id, user_id)
+            );
+CREATE INDEX idx_hw_session ON homework_delivery(session_id);
+CREATE INDEX idx_hw_user    ON homework_delivery(user_id);
+CREATE UNIQUE INDEX ux_attendance_user_session
+  ON attendance(user_id, session_id);
+sqlite> SELECT * FROM session_days LIMIT 3;
+1|2025-09-13|2|1|ПТГ-2
+2|2025-09-14|2|1|ПТГ-2
+3|2025-09-20|1|2|МАСП-3
+sqlite> SELECT * FROM users LIMIT 3;
+17|321940939|Julya_sunlight|Julya_sunlight|03031977|Шакти Юлия Валерьевна|user|+79246394693|Spablagenstvo@gmail.com|||2
+18|801952192|Maovcharov|Maovcharov|$2b$12$Qy8SuEfhPwDO3s.8Q11nwOMy.MRH8lmM.sO8Va.adE2DLTltzraBC|Овчаров Максим Анатольевич|user|±79086409445|bskirk@yandex.ru|||1
+19|851963186|pinelupine|pinelupine|$2b$12$gx7jnBmP7ksARAvagyi0QOkDZb51WiKK4t3t0uItSc5Qyk4.cj6VW|Волченкова Евгения Андреевна|user|+79041439318|pinelupine@mail.ru|||2
+sqlite> SELECT * FROM participants LIMIT 3;
+1|2|||2025-08-23 09:58:38
+3|4|1|1|2025-08-24 10:11:12
+4|16|||2025-08-28 13:16:16
+sqlite> SELECT * FROM attendance LIMIT 3;
+1|123|45|absent|2025-09-24 03:50:53|448124106
+8|18|4|absent|2025-09-27 03:51:13|448124106
+9|20|4|absent|2025-09-27 03:51:13|448124106
+sqlite> SELECT * FROM homework_delivery LIMIT 3;
+sqlite> PRAGMA foreign_key_list(attendance);
+sqlite> PRAGMA foreign_key_list(homework_delivery);
+sqlite> 

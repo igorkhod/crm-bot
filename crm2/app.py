@@ -13,6 +13,8 @@ from contextlib import suppress
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from crm2.middlewares.callback_auth_middleware import CallbackAuthMiddleware
+
 
 # ----------------- ENV -----------------
 def _load_env():
@@ -37,14 +39,16 @@ def _load_env():
 _load_env()
 
 # Для отладки печатаем первые символы токена
-for key in ("BOT_TOKEN", "TELEGRAM_TOKEN"):
-    val = os.getenv(key)
-    if val:
-        print(f"{key} = {val[:5]}*****")
-    else:
-        print(f"{key} = <не найден>")
+key = "TELEGRAM_TOKEN"
+val = os.getenv(key)
+if val:
+    print(f"{key} = {val[:5]}*****")
+else:
+    print(f"{key} = <не найден>")
 
 from crm2.bot import bot, dp  # теперь окружение уже прогружено
+
+from crm2.middlewares.auth_middleware import AuthMiddleware
 
 # ----------------- FASTAPI -----------------
 app = FastAPI(title="crm2")
@@ -114,12 +118,16 @@ async def _runner():
     # проверка базы перед стартом
     _test_db()
 
+    # Регистрируем middleware
+    dp.message.middleware(AuthMiddleware())
+    dp.callback_query.middleware(CallbackAuthMiddleware())  # Используем правильный middleware
+
     # ---- перечисляем хэндлеры ----
     _try_include("crm2.handlers.admin.panel")
-    _try_include("crm2.handlers.admin_attendance")
-    _try_include("crm2.handlers.admin_homework")
-    _try_include("crm2.handlers.admin_users")
-    _try_include("crm2.handlers.admin_db")
+    _try_include("crm2.handlers.admin.attendance")
+    _try_include("crm2.handlers.admin.homework")
+    _try_include("crm2.handlers.admin.users")
+    _try_include("crm2.handlers.admin.db")
     _try_include("crm2.handlers_schedule")
     _try_include("crm2.handlers.about")
     _try_include("crm2.handlers.auth")
@@ -130,8 +138,11 @@ async def _runner():
     _try_include("crm2.handlers.registration")
     _try_include("crm2.handlers.start")
     _try_include("crm2.handlers.welcome")
+    _try_include("crm2.handlers.main_menu")
+    _try_include("crm2.handlers.guest_menu")
 
     # должно быть — передаём сами async-функции
+
     dp.startup.register(_on_startup)
     dp.shutdown.register(_on_shutdown)
 

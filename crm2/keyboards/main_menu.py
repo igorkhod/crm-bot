@@ -6,16 +6,25 @@
 # === Конец автозаголовка
 # crm2/keyboards/main_menu.py
 
+# crm2/keyboards/main_menu.py
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-def main_menu_kb() -> ReplyKeyboardMarkup:
+
+def main_menu_kb(role: str = "user") -> ReplyKeyboardMarkup:
+    base_buttons = [
+        [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📦 Материалы")],
+        [KeyboardButton(text="ℹ️ Информация о проекте")],
+        [KeyboardButton(text="👤 Личный кабинет")],
+        [KeyboardButton(text="🧠 ИИ-агенты")],
+    ]
+
+    # Добавляем кнопку админа если нужно
+    if role == "admin":
+        base_buttons.append([KeyboardButton(text="⚙️ Админ")])
+
+    base_buttons.append([KeyboardButton(text="🔙 Выйти в меню")])
+
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📅 Расписание"), KeyboardButton(text="📦 Материалы")],
-            [KeyboardButton(text="ℹ️ Информация о проекте")],   # ← добавить
-            [KeyboardButton(text="👤 Личный кабинет")],
-            [KeyboardButton(text="🧠 ИИ-агенты"), KeyboardButton(text="⚙️ Админ")],
-            [KeyboardButton(text="🔙 Выйти в меню")],
-        ],
+        keyboard=base_buttons,
         resize_keyboard=True
     )

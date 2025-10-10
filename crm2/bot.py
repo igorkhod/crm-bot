@@ -8,9 +8,9 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 
-TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TOKEN:
-    raise RuntimeError("BOT_TOKEN/TELEGRAM_TOKEN не найден(ы) в окружении.")
+    raise RuntimeError("TELEGRAM_TOKEN не найден в окружении.")
 
 bot = Bot(
     token=TOKEN,

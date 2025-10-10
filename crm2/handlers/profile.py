@@ -122,7 +122,10 @@ async def profile_back(cq: CallbackQuery):
 async def profile_back_main(cq: CallbackQuery):
     # если у тебя есть клавиатура главного меню — подставь её
     from crm2.keyboards import main_menu_kb  # пример импорта
-    await cq.message.edit_text("Меню:", reply_markup=main_menu_kb())  # или .answer(...)
+    # СТАЛО:
+    # Удалите старое сообщение и отправьте новое
+    await cq.message.delete()
+    await cq.message.answer("Меню:", reply_markup=main_menu_kb())
     await cq.answer()
 
 

@@ -1,0 +1,92 @@
+download-history.ps1.
+Param(
+  [Parameter(Mandatory = $true)]
+  [string] $RepoUrl,            # пример: https://github.com/igorkhod/crm
+  [string] $Branch = "main",    # используемая ветка по умолчанию
+  [string[]] $Paths = @("PROJECT_MAP.md","PROJECT_MAP.full.md")
+)
+
+# --- Настройки и подготовка ---
+$ErrorActionPreference = "Stop"
+$uri = [Uri]$RepoUrl
+$owner = $uri.Segments[1].TrimEnd("/")
+$repo  = $uri.Segments[2].TrimEnd("/")
+
+$baseApi = "https://api.github.com"
+$rawBase = "https://raw.githubusercontent.com"
+$ua = @{ "User-Agent" = "ps-script" }
+$token = $env:GITHUB_TOKEN
+if ($token) { $ua["Authorization"] = "token $token" }
+
+# Создадим корневую папку для выгрузки
+$rootOut = Join-Path -Path (Get-Location) -ChildPath "versions"
+New-Item -ItemType Directory -Force -Path $rootOut | Out-Null
+
+function Get-AllCommitShasForPath {
+  param(
+    [string] $Path
+  )
+  $page = 1
+  $perPage = 100
+  $all = @()
+
+  while ($true) {
+    $url = "$baseApi/repos/$owner/$repo/commits?path=$([uri]::EscapeDataString($Path))&sha=$Branch&per_page=$perPage&page=$page"
+    $resp = Invoke-RestMethod -Uri $url -Headers $ua
+    if (-not $resp -or $resp.Count -eq 0) { break }
+    $all += $resp
+    # Пагинация: если ответов пришло меньше per_page — дальше страниц нет
+    if ($resp.Count -lt $perPage) { break }
+    $page++
+  }
+  return $all
+}
+
+function Save-FileVersion {
+  param(
+    [string] $Path,
+    [string] $Sha,
+    [datetime] $CommitDate
+  )
+  # Скачаем "сырую" версию файла на конкретном коммите
+  $rawUrl = "$rawBase/$owner/$repo/$Sha/$Path"
+  try {
+    $content = Invoke-WebRequest -Uri $rawUrl -Headers $ua -UseBasicParsing
+  } catch {
+    Write-Warning "Skip $Path @ $Sha : $($_.Exception.Message)"
+    return
+  }
+
+  # Подпапка под каждый исходный файл
+  $safeFolder = $Path -replace '[\\/:\*\?"<>\|]', "_"
+  $outDir = Join-Path $rootOut $safeFolder
+  New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+  # Имя файла: 2025-09-27T12-34-56Z_<SHA>.md
+  $ts = $CommitDate.ToUniversalTime().ToString("yyyy-MM-ddTHH-mm-ssZ")
+  $ext = ([IO.Path]::GetExtension($Path))
+  if (-not $ext) { $ext = ".md" }
+  $outName = "${ts}_$Sha$ext"
+  $outPath = Join-Path $outDir $outName
+
+  [System.IO.File]::WriteAllBytes($outPath, $content.Content)
+  Write-Host "Saved: $outPath"
+}
+
+foreach ($path in $Paths) {
+  Write-Host "=== Fetching history for: $path ==="
+  $commits = Get-AllCommitShasForPath -Path $path
+  if (-not $commits -or $commits.Count -eq 0) {
+    Write-Warning "No commits found for $path (branch: $Branch)."
+    continue
+  }
+
+  # Коммиты идут от новых к старым — можно развернуть, чтобы сохранить от старых к новым
+  foreach ($c in ($commits | Sort-Object { $_.commit.author.date })) {
+    $sha = $c.sha
+    $date = Get-Date $c.commit.author.date
+    Save-FileVersion -Path $path -Sha $sha -CommitDate $date
+  }
+}
+
+Write-Host "`nDone. See folder: $rootOut"
