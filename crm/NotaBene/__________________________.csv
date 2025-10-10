@@ -1,0 +1,35 @@
+Файл,Тип,Аннотация,Изменён
+.gitignore,,Пропущен (некодовый/небезопасный формат),нет
+crm2/__init__.py,.py,модуль CRM.,да
+crm2/__main__.py,.py,"точка входа проекта/бота, модуль CRM, асинхронные задачи.",да
+crm2/__pycache__/__init__.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/__pycache__/keyboards.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/app.py,.py,"модуль CRM, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование, загрузка конфигурации из .env. Внутри функции: _get_role_from_db, cmd_start, cmd_home, main.",да
+crm2/config.py,.py,"модуль CRM, настройки/конфигурация, загрузка конфигурации из .env. Внутри классы: Settings, функции: get_settings.",да
+crm2/data/αáß»¿ßá¡¿Ñ 2025 1 »«Γ«¬.xlsx,.xlsx,Пропущен (некодовый/небезопасный формат),нет
+crm2/data/αáß»¿ßá¡¿Ñ 2025 2 »«Γ«¬.xlsx,.xlsx,Пропущен (некодовый/небезопасный формат),нет
+crm2/db/__init__.py,.py,модуль CRM.,да
+crm2/db/__pycache__/__init__.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/db/__pycache__/sqlite.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/db/sqlite.py,.py,"модуль CRM, доступ к SQLite/ORM. Внутри функции: get_db_connection, aget_db_connection, ensure_schema.",да
+crm2/handlers/__pycache__/auth.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/handlers/__pycache__/info.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/handlers/__pycache__/registration.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/handlers/auth.py,.py,"модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x, доступ к SQLite/ORM, логирование. Внутри классы: LoginFSM, функции: build_main_menu, get_db, fetch_user_by_nickname, touch_last_seen, attach_telegram_if_empty....",да
+crm2/handlers/info.py,.py,"модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x. Внутри функции: _get, _code, _fmt_date, _build_details_kb, show_schedule....",да
+crm2/handlers/registration.py,.py,"модуль CRM, хендлеры и маршрутизация событий Telegram.",да
+crm2/handlers/registration.py.bak,.bak,Пропущен (некодовый/небезопасный формат),нет
+crm2/handlers/registration.py.old,.old,Пропущен (некодовый/небезопасный формат),нет
+crm2/keyboards.py,.py,"модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: guest_kb, role_kb, guest_start_kb.",да
+crm2/logging_config.py,.py,"модуль CRM, настройки/конфигурация, логирование. Внутри функции: setup_logging.",да
+crm2/routers/__init__.py,.py,модуль CRM.,да
+crm2/routers/__pycache__/__init__.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/routers/__pycache__/start.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/routers/start.py,.py,"модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: get_user_role, cmd_start.",да
+crm2/services/__pycache__/schedule.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/services/__pycache__/users.cpython-312.pyc,.pyc,Пропущен (некодовый/небезопасный формат),нет
+crm2/services/schedule.py,.py,"модуль CRM, расписание и события. Внутри классы: Session, функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file....",да
+crm2/services/services.py,.py,"модуль CRM, сервисные функции и бизнес-логика.",да
+crm2/services/users.py,.py,"модуль CRM, доступ к SQLite/ORM. Внутри функции: _now_iso, ensure_user, classify_role, set_role, get_user_by_telegram.",да
+crm2/states.py,.py,"модуль CRM, Telegram-бот на aiogram 3.x. Внутри классы: Login.",да
+requirements.txt,.txt,Пропущен (некодовый/небезопасный формат),нет

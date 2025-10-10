@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: projectcrm-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m crm2
+    autoDeploy: true
+    plan: starter
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CRM_DB
+        value: /opt/render/project/src/crm2.db
