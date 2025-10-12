@@ -28,16 +28,18 @@ router = Router(name="admin_schedule")
 PAGE = 10
 
 # --- входное меню ---
-@router.callback_query(F.data == "adm:schedule")
+@router.callback_query(F.data == "admin:schedule")
 async def schedule_menu(cb: CallbackQuery):
-    await _render_menu(cb.message)
+    await _render_menu(cb)
     await cb.answer()
 
-async def _render_menu(msg: Message):
-    try:
-        await msg.edit_text("Раздел «Расписание»", reply_markup=schedule_menu_kb())
-    except TelegramBadRequest:
-        await msg.answer("Раздел «Расписание»", reply_markup=schedule_menu_kb())
+
+async def _render_menu(cb: CallbackQuery):  # Принимаем CallbackQuery
+    await cb.message.edit_text(
+        "🗓 <b>Расписание</b>\nВыберите раздел:",
+        reply_markup=schedule_menu_kb(),
+        parse_mode="HTML"
+    )
 
 # --- 1) Тренинги по потокам ---
 @router.callback_query(F.data == "sch:trainings")

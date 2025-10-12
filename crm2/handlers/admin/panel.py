@@ -102,9 +102,9 @@ async def go_homework(cq: CallbackQuery):
 
 @router.callback_query(F.data == "admin:schedule")
 async def go_schedule(cq: CallbackQuery):
-    await cq.answer()
+    # Убрали await cq.answer() - он будет в schedule_menu
     from crm2.handlers.admin.schedule import schedule_menu
-    await schedule_menu(cq.message)
+    await schedule_menu(cq)  # Передаем cq вместо cq.message
 
 
 @router.callback_query(F.data == "admin:users")

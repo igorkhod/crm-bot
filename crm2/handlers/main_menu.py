@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import logging
 
+from aiogram import Router, F
+from aiogram.types import Message
+
+from crm2.keyboards import role_kb
+from crm2.services.users import get_user_by_telegram
+
 # crm2/handlers/main_menu.py
 # Назначение: Центральная навигация системы - обработка главного меню для всех ролей пользователей
 # Функции: —
@@ -12,12 +18,6 @@ import logging
 # - show_schedule - Обработчик раздела расписания (только авторизованные)
 # - show_materials - Обработчик раздела материалов (только авторизованные)
 # - show_profile - Обработчик личного кабинета (только авторизованные)
-
-from aiogram import Router, F
-from aiogram.types import Message
-
-from crm2.keyboards import role_kb
-from crm2.services.users import get_user_by_telegram
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -73,7 +73,10 @@ async def show_schedule(message: Message):
     u = get_user_by_telegram(message.from_user.id)
     if not u or not u.get('nickname'):
         return
-    await message.answer("📅 Раздел расписания...")
+
+    # Используем существующий обработчик из info.py
+    from crm2.handlers.info import show_schedule_menu
+    await show_schedule_menu(message)
 
 
 @router.message(F.text == "📦 Материалы")
