@@ -1,26 +1,12 @@
-# === Автогенерированный заголовок: crm2/db/sqlite.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: _query_only_enabled, _apply_pragmas_sync, _apply_pragmas_async, get_db_connection, aget_db_connection, ensure_schema
-# === Конец автозаголовка
-#
-# === Файл: crm2/db/sqlite.py
-# Аннотация: модуль CRM, доступ к SQLite/ORM. Внутри функции: get_db_connection, aget_db_connection, ensure_schema.
-# Добавлено автоматически 2025-08-21 05:43:17
-
 # crm2/db/sqlite.py
-# === Файл: crm2/db/sqlite.py
-# Аннотация: единая точка подключения к SQLite.
-# Поддерживает «жёсткий» режим только чтение через ENV CRM_DB_QUERY_ONLY.
-#   - CRM_DB_QUERY_ONLY=1 (по умолчанию) → PRAGMA query_only=ON
-#   - CRM_DB_QUERY_ONLY=0 → можно писать (для импортов/миграций)
-# CRM_DB_QUERY_ONLY=0 python -m crm2.cli_import_schedule schedule_2025_1_cohort.xlsx schedule_2025_2_cohort.xlsx
-#
-# или любой другой пишущий скрипт/команду.
-## кратко, как строка в песне: «в мирном русле — читаем, в редкий миг — записываем».
-#
-
+# Назначение: Единая точка подключения к SQLite (синхронное и асинхронное) с поддержкой режима только чтение
+# Функции:
+# - _query_only_enabled - Проверка, включен ли режим только чтения (через переменную окружения CRM_DB_QUERY_ONLY)
+# - _apply_pragmas_sync - Применение PRAGMA для синхронного соединения
+# - _apply_pragmas_async - Применение PRAGMA для асинхронного соединения
+# - get_db_connection - Синхронное подключение к БД (с опциональным режимом только чтения)
+# - aget_db_connection - Асинхронное подключение к БД (с опциональным режимом только чтения)
+# - ensure_schema - Идемпотентное создание базовых таблиц users, cohorts, consents (в режиме записи)
 from __future__ import annotations
 
 import os
@@ -108,8 +94,6 @@ def ensure_schema() -> None:
             role         TEXT DEFAULT 'user',
             phone        TEXT,
             email        TEXT,
-            events       TEXT,
-            participants TEXT,
             cohort_id    INTEGER
         )""")
 
@@ -120,21 +104,6 @@ def ensure_schema() -> None:
         )""")
 
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS participants (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id    INTEGER UNIQUE,
-            cohort_id  INTEGER,
-            cohort_id  INTEGER,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )""")
-
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS cohorts (
-            id    INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL
-        )""")
-
-        cur.execute("""
         CREATE TABLE IF NOT EXISTS consents (
             telegram_id INTEGER PRIMARY KEY,
             given       INTEGER NOT NULL DEFAULT 0,
@@ -142,8 +111,3 @@ def ensure_schema() -> None:
         )""")
 
         conn.commit()
-
-
-
-
-# crm2/db/sqlite.py

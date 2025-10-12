@@ -1,10 +1,11 @@
-# === Автогенерированный заголовок: crm2/keyboards/schedule.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: _fmt_date, format_range, build_schedule_keyboard
-# === Конец автозаголовка
-#
+# crm2/keyboards/schedule.py
+# Назначение: Клавиатуры и утилиты для работы с расписанием (inline-навигация)
+# Функции:
+# - _fmt_date - Форматирование даты в единый формат
+# - format_range - Форматирование диапазона дат
+# - build_schedule_keyboard - Построение клавиатуры списка сессий
+# - schedule_root_kb - Главное меню расписания (потоки, мероприятия, все события)
+# - schedule_dates_kb - Клавиатура дат сессий для конкретной когорты
 from datetime import datetime
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder

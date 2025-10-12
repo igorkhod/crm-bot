@@ -1,13 +1,3 @@
-# === Автогенерированный заголовок: crm2/handlers/auth.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: LoginSG
-# Функции: _normalize, _is_bcrypt, _check_password, _human_name, _user_role, _bind_telegram_id, _fetch_user_by_credentials, cmd_login, login_nickname, login_password, _show_role_keyboard
-# === Конец автозаголовка
-# -*- coding: utf-8 -*-
-# crm2/handlers/auth.py
-# """Хендлеры входа/авторизации."""
-
 from __future__ import annotations  # ← это должно быть первым код-оператором
 
 import asyncio
@@ -15,6 +5,26 @@ import hmac
 import logging
 import re
 from typing import Optional
+
+# crm2/handlers/auth.py
+# Назначение: Полноценная система аутентификации с FSM и безопасной проверкой паролей
+# Классы:
+# - LoginSG - FSM состояния процесса входа (nickname, password)
+# Функции:
+# - _normalize - Нормализация строк (удаление невидимых символов)
+# - _is_bcrypt - Определение формата хеша пароля
+# - _check_password - Безопасная проверка пароля (bcrypt + hmac)
+# - _human_name - Получение читаемого имени пользователя
+# - _user_role - Определение роли пользователя
+# - _bind_telegram_id - Привязка Telegram ID к учетной записи
+# - _fetch_user_by_credentials - Поиск пользователя по логину/паролю
+# - _show_role_keyboard - Показ меню по роли пользователя
+# Обработчики:
+# - login_handler - Запуск процесса авторизации по кнопке
+# - cmd_login - Запуск авторизации по команде /login
+# - login_nickname - Обработка ввода никнейма (FSM)
+# - login_password - Обработка ввода пароля и завершение авторизации (FSM)
+# - login_from_inline - Запуск авторизации из inline-кнопки
 
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext

@@ -1,11 +1,7 @@
-# === Автогенерированный заголовок: crm2/keyboards/profile.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: profile_menu_kb
-# === Конец автозаголовка
 # crm2/keyboards/profile.py
-
+# Назначение: Клавиатура личного кабинета с настройками пользователя
+# Функции:
+# - profile_menu_kb - Меню личного кабинета: поток, уведомления, материалы
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 

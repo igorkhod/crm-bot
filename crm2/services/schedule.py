@@ -1,30 +1,23 @@
-# === Автогенерированный заголовок: crm2/services/schedule.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: Session
-# Функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file, load_all, get_user_cohort_id, upcoming, format_next, format_sessions_brief, next_training_text_for_user
-# === Конец автозаголовка
-#
-# === Файл: crm2/services/schedule.py
-# Аннотация: модуль CRM, расписание и события. Внутри классы: Session, функции: _norm, _parse_date, _find_header_row, _cohort_id_from_filename, _load_one_file....
-# Добавлено автоматически 2025-08-21 05:43:17
-
 # crm2/services/schedule.py
-"""
-Загрузка расписаний из .xlsx для потоков и форматирование выдачи.
-
-Форматы колонок (регистр не важен):
-- start_date | дата начала | start | startdate
-- end_date   | дата окончания | end | enddate
-- topic_code | индекс | code
-- title      | тема | название
-- annotation | аннотация | описание
-
-Парсер сам ищет строку с заголовками среди первых 10 строк,
-поэтому можно оставлять декоративную шапку (например, "расписание 2025 2 поток")
-над таблицей — это не сломает загрузку.
-"""
-
+# Назначение: Комплексная система загрузки и работы с расписанием из XLSX и БД
+# Классы:
+# - Session - Dataclass для представления учебной сессии (даты, код, тема, аннотация)
+# Функции:
+# - _norm - Нормализация строк для сравнения
+# - _parse_date - Универсальный парсинг дат из разных форматов
+# - _find_header_row - Поиск строки заголовков в XLSX файле
+# - _cohort_id_from_filename - Извлечение ID потока из имени файла
+# - _load_one_file - Загрузка одного XLSX файла расписания
+# - load_all - Загрузка всех расписаний (XLSX + fallback на БД)
+# - get_user_cohort_id - Получение ID потока пользователя
+# - upcoming - Ближайшие занятия для пользователя
+# - list_for_cohort - Список сессий для конкретного потока
+# - detail_for_cohort_date - Детали сессии по потоку и дате
+# - list_all - Общий список всех сессий
+# - _rows_to_sessions - Конвертация строк БД в объекты Session
+# - format_next - Форматирование информации о ближайшем занятии
+# - format_sessions_brief - Краткое форматирование списка сессий
+# - next_training_text_for_user - Текст ближайшего занятия для пользователя
 from __future__ import annotations
 
 from dataclasses import dataclass

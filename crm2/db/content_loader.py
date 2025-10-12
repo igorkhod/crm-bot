@@ -1,9 +1,9 @@
-# === Автогенерированный заголовок: crm2/db/content_loader.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: _parse_md, sync_content_from_files
-# === Конец автозаголовка
+# crm2/db/content_loader.py
+# Назначение: Синхронизация контента из markdown-файлов (pages и news) в базу данных
+# Функции:
+# - _parse_md - Парсит markdown-файл, извлекая заголовок (из первой строки с #) и тело
+# - sync_content_from_files - Синхронизирует страницы и новости из папок content/pages и content/news в таблицы pages и news
+
 from __future__ import annotations
 import re, datetime as dt
 from pathlib import Path

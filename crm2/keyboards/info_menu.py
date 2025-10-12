@@ -1,11 +1,7 @@
-# === Автогенерированный заголовок: crm2/keyboards/info_menu.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: info_menu_kb
-# === Конец автозаголовка
-# /*** /dev/null
-## === Файл: crm2/keyboards/info_menu.py
+# crm2/keyboards/info_menu.py
+# Назначение: Клавиатура информационного меню с выбором потоков и мероприятий
+# Функции:
+# - info_menu_kb - Адаптивное меню информации о потоках с опциональными мероприятиями
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def info_menu_kb(*, has_events: bool) -> ReplyKeyboardMarkup:

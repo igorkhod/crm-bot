@@ -1,5 +1,10 @@
 # crm2/services/content_loader.py
-
+# Назначение: Загрузка и преобразование markdown-контента в безопасный HTML для Telegram
+# Типы:
+# - ContentKey - Литерал ключей контента (mode, meanings)
+# Функции:
+# - _sanitize_html_for_telegram - Санитизация HTML для Telegram (удаление опасных тегов)
+# - load_html - Загрузка и преобразование markdown-файла в HTML
 from pathlib import Path
 from typing import Literal
 import re

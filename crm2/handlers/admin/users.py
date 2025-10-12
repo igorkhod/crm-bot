@@ -1,12 +1,14 @@
-# === Автогенерированный заголовок: crm2/handlers/admin/users.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: admin_users_entry, admin_users_groups, _group_human, _user_line, _show_group_page, admin_users_pick_group, admin_users_page, admin_back
-# === Конец автозаголовка
 # crm2/handlers/admin/users.py
-# Краткая аннотация: подменю "Пользователи" — выбор группы и списки с пагинацией
-
+# Назначение: Просмотр пользователей с фильтрацией по группам и пагинацией
+# Функции:
+# - admin_users_entry - Вход в раздел пользователей
+# - admin_users_groups - Показ меню групп пользователей
+# - _group_human - Преобразование ключа группы в читаемое название
+# - _user_line - Форматирование строки пользователя для отображения
+# - _show_group_page - Отображение страницы с пользователями группы
+# - admin_users_pick_group - Обработка выбора группы
+# - admin_users_page - Обработка пагинации
+# - admin_back - Возврат в админ-панель
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import StateFilter

@@ -4,7 +4,9 @@
 # Классы: —
 # Функции: send_schedule_keyboard, send_nearest_session, _info_menu_kb, show_info_menu, _show_cohort1, _show_cohort2, _show_new, _show_all_schedule, _show_main_menu, on_session_click
 # === Конец автозаголовка
-
+#
+# === Файл: crm2/handlers_schedule.py
+# Аннотация: обработчики расписания для Telegram-бота, работа с сессиями и датами занятий
 from __future__ import annotations
 
 import logging

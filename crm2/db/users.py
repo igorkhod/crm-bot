@@ -1,13 +1,15 @@
-# === Автогенерированный заголовок: crm2/db/users.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: get_db_connection, _row_to_dict, list_users, list_users_by_role, list_users_by_cohort, get_user_by_tg, get_user_by_nickname, delete_user_by_tg, upsert_user
-# === Конец автозаголовка
-"""
-crm2/db/users.py
-Работа с таблицей users: получение, поиск, создание, обновление.
-"""
+# crm2/db/users.py
+# Назначение: Функции для работы с пользователями (CRUD операции)
+# Функции:
+# - get_db_connection - Получение синхронного соединения с БД (с row_factory=sqlite3.Row)
+# - _row_to_dict - Преобразование строки sqlite3.Row в словарь
+# - list_users - Получение списка всех пользователей
+# - list_users_by_role - Получение пользователей по роли
+# - list_users_by_cohort - Получение пользователей по когорте
+# - get_user_by_tg - Получение пользователя по Telegram ID
+# - get_user_by_nickname - Получение пользователя по никнейму
+# - delete_user_by_tg - Удаление пользователя по Telegram ID
+# - upsert_user - Создание или обновление пользователя
 
 import sqlite3
 from typing import Optional, List, Dict, Any

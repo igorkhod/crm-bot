@@ -1,4 +1,20 @@
-# crm2\db\sessions.py
+# crm2/db/sessions.py
+# Назначение: Функции для работы с сессиями (тренинги, мероприятия) и получения расписания для пользователей
+# Функции:
+# - get_session_detail_by_cohort_and_date - Получение деталей сессии по когорте и дате
+# - _table_exists - Проверка существования таблицы в БД
+# - _cols - Получение списка столбцов таблицы
+# - _pick - Выбор первого существующего столбца из списка кандидатов
+# - _safe_title_from_table - Безопасное получение заголовка из таблицы по ID
+# - get_user_cohort_title_by_tg - Получение когорты пользователя и ее названия по Telegram ID
+# - _select_from_session_days - Выборка из session_days (с группировкой последовательных дней)
+# - _select_from_sessions - Выборка из таблицы sessions
+# - _select_from_events - Выборка из таблицы events
+# - get_upcoming_sessions - Получение предстоящих сессий для пользователя (с учетом его когорты)
+# - get_session_by_id - Получение сессии по ID (из sessions, events или session_days)
+# - get_upcoming_sessions_by_cohort - Получение предстоящих сессий для когорты
+# - get_nearest_session_text - Получение текстовой строки с ближайшим занятием
+# - get_recent_past_sessions_by_cohort - Получение последних прошедших сессий для когорты
 
 from __future__ import annotations
 

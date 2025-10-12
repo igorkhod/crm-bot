@@ -1,14 +1,22 @@
-# crm2/app.py
 from __future__ import annotations
 
 import asyncio
-# вверху файла рядом с остальными импортами
 import contextlib
 import logging
 import os
 import pathlib
 import sqlite3
 from contextlib import suppress
+
+# === Автогенерированный заголовок: crm2/app.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: _load_env, _try_include, _test_db, _runner, main, health, _on_startup, _on_shutdown
+# === Конец автозаголовка
+# crm2/app.py
+# ... остальной код без изменений ...
+
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -47,7 +55,6 @@ else:
     print(f"{key} = <не найден>")
 
 from crm2.bot import bot, dp  # теперь окружение уже прогружено
-
 from crm2.middlewares.auth_middleware import AuthMiddleware
 
 # ----------------- FASTAPI -----------------
@@ -120,29 +127,41 @@ async def _runner():
 
     # Регистрируем middleware
     dp.message.middleware(AuthMiddleware())
-    dp.callback_query.middleware(CallbackAuthMiddleware())  # Используем правильный middleware
+    dp.callback_query.middleware(CallbackAuthMiddleware())
 
-    # ---- перечисляем хэндлеры ----
-    _try_include("crm2.handlers.admin.panel")
-    _try_include("crm2.handlers.admin.attendance")
-    _try_include("crm2.handlers.admin.homework")
-    _try_include("crm2.handlers.admin.users")
-    _try_include("crm2.handlers.admin.db")
-    _try_include("crm2.handlers_schedule")
-    _try_include("crm2.handlers.about")
-    _try_include("crm2.handlers.auth")
-    _try_include("crm2.handlers.consent")
-    _try_include("crm2.handlers.help")
-    _try_include("crm2.handlers.info")
-    _try_include("crm2.handlers.profile")
-    _try_include("crm2.handlers.registration")
+    # ---- Основные хендлеры ----
     _try_include("crm2.handlers.start")
     _try_include("crm2.handlers.welcome")
+    _try_include("crm2.handlers.auth")
+    _try_include("crm2.handlers.registration")
+    _try_include("crm2.handlers.consent")
     _try_include("crm2.handlers.main_menu")
     _try_include("crm2.handlers.guest_menu")
+    _try_include("crm2.handlers.profile")
+    _try_include("crm2.handlers.stream_selfset")
 
-    # должно быть — передаём сами async-функции
+    # ---- Информационные хендлеры ----
+    _try_include("crm2.handlers.about")
+    _try_include("crm2.handlers.help")
+    _try_include("crm2.handlers.info")  # включает расписание
 
+    # ---- Админские хендлеры ----
+    _try_include("crm2.handlers.admin.panel")
+    _try_include("crm2.handlers.admin.attendance")
+    _try_include("crm2.handlers.admin.admin_homework")  # полная версия
+    _try_include("crm2.handlers.admin.users")
+    _try_include("crm2.handlers.admin.schedule")
+    _try_include("crm2.handlers.admin.broadcast")
+    _try_include("crm2.handlers.admin.chatgpt")
+    _try_include("crm2.handlers.admin.logs")
+    _try_include("crm2.handlers.admin.db")
+
+    # ---- Дополнительные админские модули ----
+    _try_include("crm2.handlers.admin_db")
+    _try_include("crm2.handlers.admin_db_doctor")
+    _try_include("crm2.handlers.admin_users")
+
+    # Регистрируем startup/shutdown
     dp.startup.register(_on_startup)
     dp.shutdown.register(_on_shutdown)
 

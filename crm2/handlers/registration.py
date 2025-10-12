@@ -1,4 +1,22 @@
 # crm2/handlers/registration.py
+# Назначение: Полный цикл регистрации и редактирования профиля пользователя с FSM
+# Классы:
+# - EditField - FSM состояния для редактирования полей профиля (nickname, password, full_name, phone, email)
+# Функции:
+# - _edit_kb - Клавиатура выбора поля для редактирования
+# - _cohort_inline_kb - Инлайн-клавиатура выбора потока с визуализацией текущего
+# - _user_card - Форматирование карточки пользователя для отображения
+# Обработчики:
+# - show_fix_card_cmd - Старт редактирования по команде /fix
+# - show_fix_card_text - Старт редактирования по текстовым командам
+# - edit_nickname/save_nickname - Редактирование никнейма (FSM)
+# - edit_password/save_password - Редактирование пароля (FSM)
+# - edit_full_name/save_full_name - Редактирование ФИО (FSM)
+# - edit_phone/save_phone - Редактирование телефона (FSM)
+# - edit_email/save_email - Редактирование email (FSM)
+# - choose_cohort - Выбор потока обучения
+# - set_cohort_cb - Сохранение выбранного потока через callback
+# - back_from_inline - Возврат из инлайн-меню
 from __future__ import annotations
 
 from typing import Optional

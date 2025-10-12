@@ -1,10 +1,18 @@
-# crm2/services/users.py
 from __future__ import annotations
 
 import os
 import sqlite3
 from typing import Any, Dict, Optional
-
+# crm2/services/users.py
+# Назначение: Сервис для работы с пользователями - CRUD операции и управление профилями
+# Функции:
+# - _resolve_db_path - Определение пути к БД через переменные окружения
+# - _connect - Создание подключения к БД с настройками
+# - get_user_by_telegram - Получение пользователя по Telegram ID
+# - get_user_cohort_id_by_tg - Получение ID потока пользователя
+# - set_plain_user_field_by_tg - Безопасное обновление полей пользователя
+# - upsert_participant_by_tg_sync - Синхронное обновление привязки к потоку
+# - upsert_participant_by_tg - Асинхронная обертка для обновления потока
 # ───────────────────────── DB path resolver ─────────────────────────
 def _resolve_db_path() -> str:
     """

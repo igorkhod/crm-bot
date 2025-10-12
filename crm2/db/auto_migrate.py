@@ -1,3 +1,13 @@
+# crm2/db/auto_migrate.py
+# Назначение: Автоматическое создание и миграция схемы базы данных (таблицы: topics, sessions, events, healing_sessions, user_flags, attendance, payments)
+# Функции:
+# - _exec - Вспомогательная функция для выполнения SQL-запроса
+# - _has_column - Проверяет наличие столбца в таблице
+# - ensure_topics_and_session_days - Создает таблицы topics и sessions (с авто-миграцией для добавления cohort_id)
+# - ensure_events_and_healings - Создает таблицы events и healing_sessions
+# - ensure_user_flags_and_attendance - Создает таблицы user_flags, attendance и payments
+# - ensure_schedule_schema - Публичная точка входа для создания базовых таблиц расписания (устаревшее, для обратной совместимости)
+# - ensure_all_schemas - Единая точка для создания всех необходимых таблиц (вызывается при старте бота)
 # === Автогенерированный заголовок: crm2/db/auto_migrate.py
 # Список верхнеуровневых объектов файла (классы и функции).
 # Обновляется вручную при изменении состава функций/классов.

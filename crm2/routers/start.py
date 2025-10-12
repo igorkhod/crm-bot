@@ -1,16 +1,9 @@
-# === Автогенерированный заголовок: crm2/routers/start.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: get_user_role, cmd_start
-# === Конец автозаголовка
-#
-# === Файл: crm2/routers/start.py
-# Аннотация: модуль CRM, Telegram-бот на aiogram 3.x. Внутри функции: get_user_role, cmd_start.
-# Добавлено автоматически 2025-08-21 05:43:17
-
 # crm2/routers/start.py
-
+# Назначение: Обработчик команды /start с ролевой навигацией - устаревшая версия (дублирует handlers/start.py)
+# Функции:
+# - get_user_role - Определение роли пользователя по Telegram ID
+# Обработчики:
+# - cmd_start - Главный обработчик /start с разными сценариями для разных ролей
 from aiogram import Router, F
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from crm2.db.core import get_db_connection

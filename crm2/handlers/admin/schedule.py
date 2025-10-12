@@ -1,10 +1,21 @@
-# === Автогенерированный заголовок: crm2/handlers/admin/schedule.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: schedule_menu, _render_menu, trainings_entry, trainings_cohort, trainings_page, _render_trainings, events_entry, events_page, _render_events, healings_entry, healings_page, _render_healings, all_entry, all_page, _render_all
-# === Конец автозаголовка
 # crm2/handlers/admin/schedule.py
+# Назначение: Обработчики для просмотра расписания в админ-панели (тренинги, мероприятия, целительские приемы)
+# Функции:
+# - schedule_menu - Входное меню раздела расписания
+# - _render_menu - Отображение меню расписания
+# - trainings_entry - Вход в раздел тренингов
+# - trainings_cohort - Выбор когорты для просмотра тренингов
+# - trainings_page - Пагинация списка тренингов
+# - _render_trainings - Отображение списка тренингов с пагинацией
+# - events_entry - Вход в раздел мероприятий
+# - events_page - Пагинация списка мероприятий
+# - _render_events - Отображение списка мероприятий с пагинацией
+# - healings_entry - Вход в раздел целительских приемов
+# - healings_page - Пагинация списка целительских приемов
+# - _render_healings - Отображение списка целительских приемов с пагинацией
+# - all_entry - Вход в общее расписание
+# - all_page - Пагинация общего расписания
+# - _render_all - Отображение общего расписания с пагинацией
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.exceptions import TelegramBadRequest

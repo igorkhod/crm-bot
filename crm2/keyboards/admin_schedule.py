@@ -1,10 +1,9 @@
-# === Автогенерированный заголовок: crm2/keyboards/admin_schedule.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: schedule_menu_kb, schedule_cohorts_kb, pager_kb
-# === Конец автозаголовка
 # crm2/keyboards/admin_schedule.py
+# Назначение: Inline-клавиатуры для раздела расписания в админ-панели
+# Функции:
+# - schedule_menu_kb - Главное меню расписания (потоки, мероприятия, приемы, общее)
+# - schedule_cohorts_kb - Выбор когорты для просмотра тренингов
+# - pager_kb - Универсальная клавиатура пагинации для списков
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 

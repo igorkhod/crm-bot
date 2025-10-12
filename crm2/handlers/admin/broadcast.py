@@ -1,9 +1,23 @@
-# === Автогенерированный заголовок: crm2/handlers/admin/broadcast.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: BroadcastFSM
-# Функции: audience_kb, cohorts_kb, confirm_kb, start_broadcast, choose_audience, set_cohort, set_text, no_attach, with_attach, preview, back_to_text, do_send, cancel_bc, back_bc
-# === Конец автозаголовка
+# crm2/handlers/admin/broadcast.py
+# Назначение: Обработчики админ-панели для массовой рассылки сообщений пользователям
+# Классы:
+# - BroadcastFSM - FSM состояния для создания рассылки (audience, cohort, text, attach, confirm)
+# Функции:
+# - audience_kb - Клавиатура выбора аудитории рассылки
+# - cohorts_kb - Клавиатура выбора когорты для рассылки
+# - confirm_kb - Клавиатура подтверждения рассылки
+# - preview - Предпросмотр рассылки перед отправкой
+# Обработчики:
+# - start_broadcast - Начало создания рассылки
+# - choose_audience - Выбор аудитории (всем или по когорте)
+# - set_cohort - Установка когорты для рассылки
+# - set_text - Получение текста рассылки
+# - no_attach - Подтверждение отсутствия файла
+# - with_attach - Обработка прикрепленного файла
+# - back_to_text - Возврат к редактированию текста
+# - do_send - Выполнение рассылки с троттлингом
+# - cancel_bc - Отмена рассылки
+# - back_bc - Возврат к выбору аудитории
 from __future__ import annotations
 import asyncio, json, math
 from aiogram import Router, F

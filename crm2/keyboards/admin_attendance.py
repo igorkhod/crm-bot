@@ -1,4 +1,9 @@
-
+# crm2/keyboards/admin_attendance.py
+# Назначение: Клавиатуры для системы управления посещаемостью в админ-панели
+# Функции:
+# - _fmt - Форматирование даты из ISO в читаемый вид
+# - attendance_root_kb - Главное меню посещаемости (сегодняшние и прошлые сессии)
+# - attendance_users_kb - Клавиатура списка пользователей с иконками статусов посещения
 from __future__ import annotations
 
 from datetime import datetime

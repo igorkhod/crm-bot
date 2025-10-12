@@ -1,9 +1,15 @@
-# === Автогенерированный заголовок: crm2/db/schedule_loader.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: Row
-# Функции: _norm, _pick, _detect_cohort_from_filename, _iter_xlsx, sync_schedule_from_files, list_schedule_files, sync_schedule_autodiscover
-# === Конец автозаголовка
+# crm2/db/schedule_loader.py
+# Назначение: Загрузка и синхронизация расписания из XLSX файлов в базу данных (таблицы topics и session_days)
+# Классы:
+# - Row - Dataclass для представления строки расписания (date, code, title, annotation, cohort_id)
+# Функции:
+# - _norm - Нормализация строки для сравнения (удаление лишних символов, приведение к нижнему регистру)
+# - _pick - Выбор первого существующего ключа из словаря по списку кандидатов
+# - _detect_cohort_from_filename - Извлечение номера когорты из имени файла
+# - _iter_xlsx - Итератор по строкам XLSX файла, преобразующий данные в объекты Row
+# - sync_schedule_from_files - Синхронизация расписания из списка файлов в БД
+# - list_schedule_files - Поиск файлов расписания по шаблону в корне проекта
+# - sync_schedule_autodiscover - Автоматическое обнаружение файлов расписания и их синхронизация
 
 from __future__ import annotations
 

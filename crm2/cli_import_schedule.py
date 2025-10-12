@@ -8,7 +8,6 @@
 # Назначение: одноразовый импорт расписания из XLSX в session_days (вне запуска бота)
 # Запуск на сервере (SSH):
 # python -m crm2.cli_import_schedule schedule_2025_1_cohort.xlsx schedule_2025_2_cohort.xlsx
-
 import argparse
 import logging
 from crm2.db.auto_migrate import ensure_schedule_schema

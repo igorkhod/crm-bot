@@ -1,8 +1,10 @@
-# crm2/services/attendance.py
-"""
-Сервисный слой для работы с посещаемостью и рассылкой домашних заданий.
-Используется модулем admin_homework.py
-"""
+# crm2/services/attendance2.py
+# Назначение: Сервисный слой для работы с посещаемостью и домашними заданиями (асинхронная версия)
+# Функции:
+# - get_sessions_near - Асинхронное получение ближайших сессий
+# - get_present_users - Асинхронное получение присутствовавших пользователей
+# - get_not_yet_delivered - Асинхронное получение пользователей без ДЗ
+# - mark_homework_delivered - Асинхронная отметка доставки ДЗ
 import sqlite3
 from datetime import date, timedelta
 from typing import List, Tuple, Optional

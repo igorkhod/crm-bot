@@ -1,7 +1,17 @@
-# crm2/handlers/main_menu.py
 from __future__ import annotations
 
 import logging
+
+# crm2/handlers/main_menu.py
+# Назначение: Центральная навигация системы - обработка главного меню для всех ролей пользователей
+# Функции: —
+# Обработчики:
+# - to_main_menu - Переход в главное меню после авторизации с определением роли
+# - back_to_main - Универсальный возврат в главное меню (гость/пользователь/админ)
+# - handle_admin_button - Проверка прав и перенаправление в админ-панель
+# - show_schedule - Обработчик раздела расписания (только авторизованные)
+# - show_materials - Обработчик раздела материалов (только авторизованные)
+# - show_profile - Обработчик личного кабинета (только авторизованные)
 
 from aiogram import Router, F
 from aiogram.types import Message

@@ -1,10 +1,8 @@
-# === Автогенерированный заголовок: crm2/db/bootstrap.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: ensure_min_schema
-# === Конец автозаголовка
 # crm2/db/bootstrap.py
+# Назначение: Создание основных таблиц при запуске (users, cohorts) - идемпотентно
+# Функции:
+# - ensure_min_schema - Создает основные таблицы: users, cohorts (если их нет)
+
 from __future__ import annotations
 import sqlite3
 from crm2.db.core import get_db_connection
@@ -27,7 +25,6 @@ def ensure_min_schema() -> None:
                 phone        TEXT,
                 email        TEXT,
                 events       TEXT,
-                participants TEXT,
                 cohort_id    INTEGER
             )
             """
@@ -41,16 +38,5 @@ def ensure_min_schema() -> None:
             )
             """
         )
-        # participants
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS participants (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER UNIQUE,
-                cohort_id  INTEGER,
-                cohort_id  INTEGER,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
+        # Таблица participants удалена - её функционал полностью покрывается таблицей attendance
         conn.commit()

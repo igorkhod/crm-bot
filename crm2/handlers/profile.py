@@ -1,4 +1,3 @@
-# crm2/handlers/profile.py
 from __future__ import annotations
 
 import logging
@@ -6,6 +5,20 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+
+# crm2/handlers/profile.py
+# Назначение: Личный кабинет пользователя с настройками профиля и управлением потоком
+# Функции:
+# - _extract_ids - Универсальное извлечение chat_id и user_id из Message/CallbackQuery
+# - _profile_kb - Создание клавиатуры личного кабинета
+# - show_profile - Универсальный показ профиля (поддерживает Message и CallbackQuery)
+# Обработчики:
+# - profile_entry - Вход в личный кабинет по кнопке
+# - ask_stream - Интерфейс выбора учебного потока
+# - set_stream_cb - Сохранение выбранного потока в БД
+# - profile_back - Возврат в карточку профиля
+# - profile_back_main - Возврат в главное меню с удалением сообщения
+# - toggle_notify - Переключение настроек уведомлений
 # ... твои импорт(ы) БД/сервисов остаются как есть ...
 
 router = Router()

@@ -1,4 +1,10 @@
 # crm2/services/participants.py
+# Назначение: Сервис для работы с привязкой пользователей к учебным потокам
+# Функции:
+# - get_streams - Получение списка всех потоков из БД
+# - upsert_participant_stream - Назначение пользователю потока (INSERT/UPDATE)
+# - users_missing_stream - Поиск пользователей без привязки к потоку
+# - get_user_id_by_tg - Получение user_id по Telegram ID
 from __future__ import annotations
 
 import logging

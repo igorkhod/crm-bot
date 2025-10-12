@@ -4,6 +4,25 @@ import asyncio
 import logging
 from typing import Iterable
 
+# crm2/handlers/admin/admin_homework.py
+# Назначение: Обработчики админ-панели для управления домашними заданиями (рассылка, статус, сброс)
+# Классы:
+# - HW - FSM состояния для работы с домашними заданиями (awaiting_link, chosen_session)
+# Функции:
+# - _kb - Создание InlineKeyboardMarkup из списка кнопок
+# - homework_menu_markup - Создание клавиатуры главного меню домашних заданий
+# - _sessions_list_kb - Создание клавиатуры списка сессий для выбора
+# - _session_actions_kb - Создание клавиатуры действий для выбранной сессии
+# Обработчики:
+# - admin_homework_entry - Вход в раздел домашних заданий
+# - cb_hw_menu - Возврат в меню домашних заданий
+# - cb_hw_list - Показ списка ближайших сессий
+# - cb_hw_session - Обработка выбора сессии
+# - cb_hw_send_ask_link - Запрос ссылки на ДЗ для выбранной сессии
+# - hw_got_links - Обработка полученных ссылок и рассылка ДЗ
+# - cb_hw_status_ask, cb_hw_status - Просмотр статуса доставки ДЗ
+# - cb_hw_reset_info - Информация о сбросе отметок (заглушка)
+
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State

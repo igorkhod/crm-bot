@@ -1,4 +1,7 @@
 # crm2/keyboards/admin_panel.py
+# Назначение: Reply-клавиатура админ-панели с навигацией по всем разделам
+# Функции:
+# - admin_panel_kb - Основная клавиатура админ-панели с 8 разделами управления
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 def admin_panel_kb() -> ReplyKeyboardMarkup:

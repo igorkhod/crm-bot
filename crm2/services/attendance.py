@@ -5,6 +5,23 @@ from typing import List, Dict, Any
 from datetime import date
 from typing import Optional
 
+# crm2/services/attendance.py
+# Назначение: Сервисный слой для работы с посещаемостью и домашними заданиями (синхронная версия)
+# Функции:
+# - find_today_session - Поиск сегодняшнего занятия в session_days
+# - find_recent_past_sessions - Получение последних прошедших занятий
+# - get_stream_title - Получение названия потока
+# - get_attendance_map - Получение карты посещаемости для сессии
+# - upsert_attendance - Обновление/добавление записи посещаемости
+# - status_to_emoji/emoji_to_status - Конвертация статусов в эмодзи и обратно
+# - mark_attendance - Асинхронное отметка посещаемости
+# - get_present_users - Получение присутствовавших пользователей
+# - find_user_id_by_nickname - Поиск user_id по никнейму
+# - get_sessions_near - Получение ближайших сессий
+# - ensure_homework_delivery_table - Создание таблицы доставки ДЗ
+# - get_not_yet_delivered - Получение пользователей без доставленных ДЗ
+# - mark_homework_delivered - Отметка доставки ДЗ
+
 from crm2.db.core import get_db_connection, DB_PATH
 # crm2/services/attendance.py
 from crm2.db import db

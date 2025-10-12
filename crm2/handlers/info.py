@@ -1,16 +1,27 @@
-# === Автогенерированный заголовок: crm2/handlers/info.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: _get, _code, _fmt_date, _build_details_kb, show_schedule, session_details, show_agents, open_meditation, open_harmony, open_agents_instruction, back_to_main, show_project_menu, how_sessions_go, back_to_main_from_project
-# === Конец автозаголовка
-#
-# === Файл: crm2/handlers/info.py
-# Аннотация: модуль CRM, хендлеры и маршрутизация событий Telegram, Telegram-бот на aiogram 3.x. Внутри функции: _get, _code, _fmt_date, _build_details_kb, show_schedule....
-# Добавлено автоматически 2025-08-21 05:43:17
-
-
 # crm2/handlers/info.py
+# Назначение: Многофункциональный модуль информации - расписание, ИИ-агенты, проект и общая навигация
+# Функции:
+# - _get - Универсальный доступ к полям объектов и словарей
+# - _code - Извлечение кода занятия из различных полей
+# - _fmt_date - Форматирование даты в читаемый вид
+# - _build_details_kb - Построение клавиатуры деталей сессий
+# - _show_schedule_list - Вспомогательный показ списка расписания
+# Обработчики:
+# - show_schedule_menu - Главное меню расписания
+# - session_details - Детальная информация о выбранной сессии
+# - show_agents - Меню ИИ-агентов
+# - open_meditation - Ссылка на агента "Волевая медитация"
+# - open_harmony - Ссылка на агента "Психотехнологии гармонии"
+# - open_agents_instruction - Подробная инструкция по подключению ChatGPT
+# - show_project_menu - Меню информации о проекте
+# - how_sessions_go - Устаревший обработчик (редирект на проект)
+# - back_to_main_from_project - Возврат в главное меню с учетом роли
+# - on_events - Обработчик мероприятий (заглушка)
+# - on_all - Показ общего расписания всех событий
+# - on_cohort - Навигация по расписанию когорт с пагинацией дат
+# - on_info_mode - Показ информации о режиме проекта
+# - on_info_meanings - Ссылка на смыслы проекта (внешний ресурс)
+# - on_info_mainmenu - Возврат в меню информации о проекте
 from __future__ import annotations
 
 from aiogram import Router, F

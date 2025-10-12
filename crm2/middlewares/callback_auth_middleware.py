@@ -1,4 +1,9 @@
 # crm2/middlewares/callback_auth_middleware.py
+# Назначение: Middleware для проверки авторизации callback-запросов
+# Классы:
+# - CallbackAuthMiddleware - Middleware проверки авторизации колбэков
+# Методы:
+# - __call__ - Основной метод обработки callback-запросов с детальной логикой проверки
 import logging
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware

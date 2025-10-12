@@ -1,12 +1,12 @@
+# === Автогенерированный заголовок: crm2/update_project_map.py
+# Список верхнеуровневых объектов файла (классы и функции).
+# Обновляется вручную при изменении состава функций/классов.
+# Классы: —
+# Функции: list_files, read_env_vars, read_db_schema, build_map, main
+# === Конец автозаголовка
 #
-#!/usr/bin/env python3
-# C:\Users\user\PycharmProjects\crm\scripts\update_project_map.py
-"""
-scripts/update_project_map.py — автообновление PROJECT_MAP.full.md
-
-Запуск: python scripts/update_project_map.py
-"""
-
+# === Файл: crm2/update_project_map.py
+# Аннотация: утилита для автоматического обновления карты проекта PROJECT_MAP.full.md
 import os
 import sqlite3
 from pathlib import Path

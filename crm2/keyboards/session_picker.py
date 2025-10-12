@@ -1,10 +1,7 @@
-# === Автогенерированный заголовок: crm2/keyboards/session_picker.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: build_session_picker
-# === Конец автозаголовка
 # crm2/keyboards/session_picker.py
+# Назначение: Специализированная клавиатура для выбора сессий с датами и кодами
+# Функции:
+# - build_session_picker - Построение клавиатуры выбора сессии с группировкой по режиму
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def build_session_picker(sessions, mode: str) -> InlineKeyboardMarkup:

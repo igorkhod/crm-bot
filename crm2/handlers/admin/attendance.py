@@ -7,6 +7,24 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+# crm2/handlers/admin/attendance.py
+# Назначение: Обработчики админ-панели для отметки посещаемости студентов по когортам и датам
+# Константы:
+# - ATTENDANCE_STATUSES - Словарь статусов посещаемости с emoji
+# Функции:
+# - admin_attendance_entry - Входная точка раздела посещаемости
+# - show_attendance_main - Главное меню посещаемости с сегодняшними занятиями
+# - show_date_selection - Выбор даты занятий для когорты
+# - show_attendance_marking - Интерфейс отметки посещения для сессии (использует users.cohort_id)
+# Обработчики:
+# - back_to_attendance_main - Возврат в главное меню посещаемости
+# - admin_attendance_handler - Обработчик кнопки "Посещаемость" в админ-панели
+# - choose_cohort - Выбор когорты для отметки посещаемости
+# - process_cohort_selection - Обработка выбора когорты и переход к выбору даты
+# - process_student_attendance - Обработка выбора студента для изменения статуса
+# - set_attendance_status - Установка статуса посещаемости для студента
+# - test_simple - Тестовый обработчик
+
 from crm2.services.database import db
 from crm2.services.users import get_user_by_telegram
 
@@ -130,12 +148,11 @@ async def show_attendance_marking(message: Message, cohort_id: str, cohort_name:
         session_id = session['id']
         print(f"📝 Найдено занятие с id={session_id}")
 
-        # Получаем студентов когорты
+        # Получаем студентов когорты (ИСПРАВЛЕНО: используем users.cohort_id вместо participants)
         students = await db.fetch_all("""
                                       SELECT u.id, u.full_name, u.username, u.telegram_id
                                       FROM users u
-                                               JOIN participants p ON u.id = p.user_id
-                                      WHERE p.cohort_id = ?
+                                      WHERE u.cohort_id = ?
                                       ORDER BY u.full_name
                                       """, (cohort_id,))
 

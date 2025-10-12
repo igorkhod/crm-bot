@@ -1,10 +1,7 @@
-# === Автогенерированный заголовок: crm2/keyboards/agents.py
-# Список верхнеуровневых объектов файла (классы и функции).
-# Обновляется вручную при изменении состава функций/классов.
-# Классы: —
-# Функции: agents_menu_kb
-# === Конец автозаголовка
 # crm2/keyboards/agents.py
+# Назначение: Reply-клавиатура меню ИИ-агентов с инструкциями и ссылками
+# Функции:
+# - agents_menu_kb - Меню агентов: инструкция, медитация, гармония, возврат
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def agents_menu_kb() -> ReplyKeyboardMarkup:

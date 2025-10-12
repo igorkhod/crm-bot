@@ -1,10 +1,18 @@
-# crm2/handlers/stream_selfset.py
 from __future__ import annotations
 
 import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+# crm2/handlers/stream_selfset.py
+# Назначение: Самостоятельная настройка учебного потока пользователем
+# Функции:
+# - _streams_kb - Создание клавиатуры выбора потоков
+# Обработчики:
+# - cmd_set_stream - Обработчик команды /set_stream и текстовой кнопки
+# - me_set_stream - Сохранение выбранного потока в БД
+# - open_set_stream_from_profile - Интеграция с личным кабинетом
 
 from crm2.services.participants import get_streams, upsert_participant_stream, get_user_id_by_tg
 
