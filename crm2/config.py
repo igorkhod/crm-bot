@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from dataclasses import dataclass
 
 # 1) Грузим .env.* (локальная отладка приоритетнее)
 cwd = Path(__file__).resolve().parents[1]  # .../crm2
@@ -23,43 +24,36 @@ for env_name in (".env.local", ".env.prod", ".env"):
         load_dotenv(env_path, override=False)
 
 # 2) Путь к БД
-#    Можно переопределить переменной окружения CRM_DB_PATH
+#    Можно переопределить переменной окружения DB_PATH
 default_db = proj_root / "crm2" / "data" / "crm.db"
-DB_PATH = os.getenv("CRM_DB_PATH", str(default_db))
+DB_PATH = os.getenv("DB_PATH", str(default_db))
 
 # 3) Прочие базовые настройки (по желанию)
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").split("#", 1)[0]
-BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 
 # --- shim для совместимости: get_settings() ---
-try:
-    get_settings  # уже определена? тогда ничего не делаем
-except NameError:
-    from dataclasses import dataclass
-    import os
-    from pathlib import Path
+@dataclass(frozen=True)
+class _Settings:
+    DB_PATH: str
+    LOG_LEVEL: str = "INFO"
 
-    @dataclass(frozen=True)
-    class _Settings:
-        DB_PATH: str
-        LOG_LEVEL: str = "INFO"
+def get_settings() -> _Settings:
+    """
+    Унифицированные настройки проекта.
 
-    def get_settings() -> _Settings:
-        """
-        Унифицированные настройки проекта.
+    Приоритет DB_PATH:
+    1) переменная окружения CRM_DB_PATH,
+    2) локальный файл crm2/data/crm.db (по умолчанию для разработки).
+    """
+    env_db = os.getenv("DB_PATH")
+    if env_db:
+        db_path = env_db
+    else:
+        crm2_dir = Path(__file__).resolve().parent
+        db_path = str(crm2_dir / "data" / "crm.db")
 
-        Приоритет DB_PATH:
-        1) переменная окружения CRM_DB_PATH,
-        2) локальный файл crm2/data/crm.db (по умолчанию для разработки).
-        """
-        env_db = os.getenv("CRM_DB_PATH")
-        if env_db:
-            db_path = env_db
-        else:
-            crm2_dir = Path(__file__).resolve().parent
-            db_path = str(crm2_dir / "data" / "crm.db")
-
-        log_level = os.getenv("LOG_LEVEL", "INFO")
-        return _Settings(DB_PATH=db_path, LOG_LEVEL=log_level)
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    return _Settings(DB_PATH=db_path, LOG_LEVEL=log_level)

@@ -69,7 +69,7 @@
 - `crm2/keyboards/session_picker.py`
 
 ## ⚙️ Переменные окружения (.env.example)
-- `BOT_TOKEN=1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`
+- `TELEGRAM_TOKEN=1234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`
 - `ADMIN_ID=123456789`
 - `WEATHER_API_KEY=your_openweather_api_key_here`
 - `IGOR_KHOD_DEEPSEEK_API_KEY=sk-your-deepseek-key-here`

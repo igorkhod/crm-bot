@@ -34,7 +34,7 @@ DEBUG: bool = _to_bool(os.getenv("DEBUG"), default=False)
 TZ: str = os.getenv("TZ", "Europe/Helsinki")
 
 # Токены и ключи
-BOT_TOKEN: str | None = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN: str | None = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
 ADMIN_ID: str | None = os.getenv("ADMIN_ID")
 
@@ -49,7 +49,7 @@ RETRY_COUNT: int = _to_int(os.getenv("RETRY_COUNT"), 3)
 _default_data_dir = Path("/var/data")
 DATA_DIR: Path = Path(os.getenv("DATA_DIR", str(_default_data_dir if _default_data_dir.exists() else CRM2_DIR / "data"))).resolve()
 
-_db_env = os.getenv("CRM_DB_PATH") or os.getenv("DB_PATH")
+_db_env = os.getenv("DB_PATH")
 if _db_env:
     DB_PATH: str = _db_env
 else:
@@ -65,11 +65,11 @@ def get_settings():
     Унифицированные настройки проекта для старого кода (без dataclass).
 
     Приоритет DB_PATH:
-      1) переменные окружения CRM_DB_PATH / DB_PATH,
+      1) переменные окружения DB_PATH / DB_PATH,
       2) DATA_DIR/crm.db (где DATA_DIR = /var/data при наличии),
       3) локальный файл crm2/data/crm.db.
     """
-    db = os.getenv("CRM_DB_PATH") or os.getenv("DB_PATH")
+    db = os.getenv("DB_PATH")
     if not db:
         data_dir = Path(os.getenv("DATA_DIR", str(DATA_DIR)))
         candidate = data_dir / "crm.db"
@@ -85,7 +85,7 @@ __all__ = [
     # Режимы
     "ENV", "LOG_LEVEL", "DEBUG", "TZ",
     # Ключи/сеть
-    "BOT_TOKEN", "OPENAI_API_KEY", "ADMIN_ID",
+    "TELEGRAM_TOKEN", "OPENAI_API_KEY", "ADMIN_ID",
     "HOST", "PORT", "HTTP_TIMEOUT", "RETRY_COUNT",
     # Совместимость
     "get_settings",
