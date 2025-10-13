@@ -1,5 +1,5 @@
 # PROJECT_MAP.full.md — автогенерация
-> Обновлено: Tue Oct  7 05:33:14 UTC 2025
+> Обновлено: Mon Oct 13 07:53:14 UTC 2025
 
 ## 📂 Структура файлов
 ### handlers
@@ -7,23 +7,24 @@
 - `crm2/handlers/about.py`
 - `crm2/handlers/admin/__init__.py`
 - `crm2/handlers/admin/admin_homework.py`
+- `crm2/handlers/admin/attendance.py`
 - `crm2/handlers/admin/broadcast.py`
 - `crm2/handlers/admin/chatgpt.py`
+- `crm2/handlers/admin/db.py`
 - `crm2/handlers/admin/logs.py`
 - `crm2/handlers/admin/panel.py`
 - `crm2/handlers/admin/schedule.py`
-- `crm2/handlers/admin/stream_fix.py`
 - `crm2/handlers/admin/users.py`
-- `crm2/handlers/admin_attendance.py`
 - `crm2/handlers/admin_db.py`
 - `crm2/handlers/admin_db_doctor.py`
 - `crm2/handlers/admin_homework.py`
 - `crm2/handlers/admin_users.py`
-- `crm2/handlers/attendance.py`
 - `crm2/handlers/auth.py`
 - `crm2/handlers/consent.py`
+- `crm2/handlers/guest_menu.py`
 - `crm2/handlers/help.py`
 - `crm2/handlers/info.py`
+- `crm2/handlers/main_menu.py`
 - `crm2/handlers/profile.py`
 - `crm2/handlers/registration.py`
 - `crm2/handlers/start.py`
@@ -49,6 +50,7 @@
 - `crm2/services/attendance2.py`
 - `crm2/services/chatgpt_status.py`
 - `crm2/services/content_loader.py`
+- `crm2/services/database.py`
 - `crm2/services/participants.py`
 - `crm2/services/schedule.py`
 - `crm2/services/services.py`
@@ -61,6 +63,7 @@
 - `crm2/keyboards/admin_schedule.py`
 - `crm2/keyboards/admin_users.py`
 - `crm2/keyboards/agents.py`
+- `crm2/keyboards/guest.py`
 - `crm2/keyboards/info_menu.py`
 - `crm2/keyboards/main_menu.py`
 - `crm2/keyboards/profile.py`
