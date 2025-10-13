@@ -89,17 +89,30 @@ def _try_include(module_path: str, attr: str = "router"):
 
 
 # добавь ниже функции _try_include(...) вот эти два коллбека
+# async def _on_startup():
+#     if ADMIN_ID:
+#         with contextlib.suppress(Exception):
+#             await bot.send_message(ADMIN_ID, "🚀 Бот запущен и готов к работе!")
+
+
+# async def _on_shutdown():
+#     if ADMIN_ID:
+#         with contextlib.suppress(Exception):
+#             await bot.send_message(ADMIN_ID, "⛔️ Бот остановлен.")
+
 async def _on_startup():
     if ADMIN_ID:
-        with contextlib.suppress(Exception):
-            await bot.send_message(ADMIN_ID, "🚀 Бот запущен и готов к работе!")
-
+        try:
+            await bot.send_message(ADMIN_ID, 'Бот запущен и готов к работе!')
+        except Exception:
+            pass
 
 async def _on_shutdown():
     if ADMIN_ID:
-        with contextlib.suppress(Exception):
-            await bot.send_message(ADMIN_ID, "⛔️ Бот остановлен.")
-
+        try:
+            await bot.send_message(ADMIN_ID, 'Бот остановлен..')
+        except Exception:
+            pass
 
 # ----------------- DB TEST -----------------
 def _test_db():
