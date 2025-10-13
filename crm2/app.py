@@ -17,7 +17,6 @@ from contextlib import suppress
 # crm2/app.py
 # ... остальной код без изменений ...
 
-
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
