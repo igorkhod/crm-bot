@@ -4,6 +4,14 @@
 # - CallbackAuthMiddleware - Middleware проверки авторизации колбэков
 # Методы:
 # - __call__ - Основной метод обработки callback-запросов с детальной логикой проверки
+# новое описание:
+# crm2/middlewares/callback_auth_middleware.py
+# Назначение: Middleware для проверки авторизации callback-запросов
+# Классы:
+# - CallbackAuthMiddleware - Middleware проверки авторизации колбэков
+# Методы:
+# - __call__ - Основной метод обработки callback-запросов с детальной логикой проверки
+
 import logging
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
@@ -27,7 +35,7 @@ class CallbackAuthMiddleware(BaseMiddleware):
         # Пропускаем callback data, которые начинаются с "admin:" - они уже проверены
         if event.data and event.data.startswith('admin:'):
             logger.info(f"CallbackAuthMiddleware: processing admin callback {event.data}")
-            user = get_user_by_telegram(event.from_user.id)
+            user = await get_user_by_telegram(event.from_user.id)
             if user and user.get('nickname') and user.get('password'):
                 data['user'] = user
                 return await handler(event, data)
@@ -41,7 +49,7 @@ class CallbackAuthMiddleware(BaseMiddleware):
                 return
 
         # Для остальных callback проверяем авторизацию
-        user = get_user_by_telegram(event.from_user.id)
+        user = await get_user_by_telegram(event.from_user.id)
         logger.info(f"CallbackAuthMiddleware: user found = {bool(user)}")
 
         if not user:

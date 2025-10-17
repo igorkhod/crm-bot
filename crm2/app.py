@@ -16,6 +16,18 @@ from contextlib import suppress
 # === Конец автозаголовка
 # crm2/app.py
 # ... остальной код без изменений ...
+# Путь: crm2/app.py
+# Назначение: Главный файл приложения, инициализация FastAPI и бота, загрузка окружения, подключение роутеров, управление жизненным циклом.
+# Функции:
+# _load_env - Загрузка переменных окружения из файлов
+# _try_include - Подключение роутеров с обработкой ошибок
+# _test_db - Тестирование подключения к базе данных
+# _init_db - Инициализация базы данных (создание таблиц, если не существуют)
+# _runner - Основная функция запуска бота (инициализация БД, подключение middleware и роутеров, запуск поллинга)
+# main - Точка входа, запуск асинхронного приложения
+# health - Эндпоинт для проверки здоровья приложения
+# _on_startup - Функция, выполняемая при запуске бота (отправка уведомления админу)
+# _on_shutdown - Функция, выполняемая при остановке бота (отправка уведомления админу)
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -44,6 +56,16 @@ def _load_env():
 
 # Загружаем окружение до импорта бота
 _load_env()
+
+# После _load_env() добавьте:
+print("[DEBUG] Проверка переменных окружения:")
+print(f"DB_PATH = {os.getenv('DB_PATH')}")
+print(f"CRM_DB = {os.getenv('CRM_DB')}")
+
+# Проверим путь к базе
+db_path = pathlib.Path(__file__).resolve().parent / "data" / "crm.db"
+print(f"[DEBUG] Путь к БД: {db_path}")
+print(f"[DEBUG] Существует: {db_path.exists()}")
 
 # Для отладки печатаем первые символы токена
 key = "TELEGRAM_TOKEN"
@@ -115,23 +137,83 @@ async def _on_shutdown():
             pass
 
 # ----------------- DB TEST -----------------
+# В функции _test_db в app.py
 def _test_db():
     """Пробуем открыть crm.db и выполнить SELECT 1."""
     db_path = pathlib.Path(__file__).resolve().parent / "data" / "crm.db"
+    print(f"[DB DEBUG] Проверяем путь к базе: {db_path}")  # ДЛЯ ОТЛАДКИ
+    print(f"[DB DEBUG] Файл существует: {db_path.exists()}")  # ДЛЯ ОТЛАДКИ
+
     if not db_path.exists():
         logging.warning(f"[DB] Файл базы {db_path} не найден")
+        # Попробуем создать директорию
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        logging.info(f"[DB] Создана директория {db_path.parent}")
         return
+
     try:
         con = sqlite3.connect(db_path)
         cur = con.cursor()
         cur.execute("SELECT 1")
         res = cur.fetchone()
         logging.info(f"[DB] Подключение успешно, SELECT 1 -> {res}")
+
+        # Проверим таблицу users
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+        users_table = cur.fetchone()
+        logging.info(f"[DB] Таблица users существует: {users_table is not None}")
+
         con.close()
     except Exception as e:
         logging.exception(f"[DB] Ошибка при подключении: {e}")
 
 
+# Добавьте в app.py после _test_db
+def _init_db():
+    """Инициализация базы данных если она не существует"""
+    db_path = pathlib.Path(__file__).resolve().parent / "data" / "crm.db"
+
+    if not db_path.exists():
+        logging.info(f"[DB INIT] Создание базы данных: {db_path}")
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            con = sqlite3.connect(db_path)
+            cur = con.cursor()
+
+            # Создаем таблицу users если не существует
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER UNIQUE,
+                    username TEXT,
+                    nickname TEXT,
+                    full_name TEXT,
+                    role TEXT DEFAULT 'user',
+                    phone TEXT,
+                    email TEXT,
+                    cohort_id INTEGER,
+                    password TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            con.commit()
+            con.close()
+            logging.info("[DB INIT] База данных успешно создана")
+        except Exception as e:
+            logging.exception(f"[DB INIT] Ошибка при создании базы: {e}")
+
+
+# В функции _runner добавьте вызов _init_db перед _test_db
+async def _runner():
+    # инициализация базы перед проверкой
+    _init_db()
+
+    # проверка базы перед стартом
+    _test_db()
+
+    # ... остальной код
 # ----------------- RUNNER -----------------
 async def _runner():
     # проверка базы перед стартом
@@ -192,6 +274,16 @@ async def _runner():
 # ----------------- MAIN -----------------
 def main():
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+    # В main() функцию app.py добавьте:
+    from crm2.services.users import create_test_user_if_not_exists
+
+    async def main():
+        # ... существующий код ...
+
+        # Создаем тестового пользователя если нужно
+        await create_test_user_if_not_exists()
+
+        # ... остальной код ...
     with suppress(KeyboardInterrupt):
         asyncio.run(_runner())
 

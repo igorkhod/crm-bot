@@ -1,14 +1,30 @@
+# guest_menu.py
+# Путь: crm2/handlers/guest_menu.py
+# Назначение: Гостевое меню для неаутентифицированных пользователей, вход в систему
+# Классы:
+#
+# GuestLoginStates - Состояния FSM для гостевого входа (waiting_password)
+# Функции:
+#
+# guest_start - Обработчик команды /start для гостей
+#
+# guest_login - Обработчик кнопки "Войти" (переход в процесс аутентификации)
+#
+# process_login_password - Обработка введенного пароля с автоматическим хешированием
 from __future__ import annotations
 
 import logging
+# "\crm2\handlers\guest_menu.py"
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command, StateFilter
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message
 
-from crm2.services.users import get_user_by_telegram
 from crm2.keyboards import guest_start_kb, role_kb
+from crm2.services.users import get_user_by_telegram, update_user_password  # Импортируем update_user_password
+from crm2.utils.password_utils import verify_and_upgrade_password, \
+    normalize_string  # Импортируем verify_and_upgrade_password
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -20,18 +36,15 @@ class GuestLoginStates(StatesGroup):
 
 @router.message(Command("start"))
 async def guest_start(message: Message):
-    """Обработчик команды /start для гостей"""
-    u = get_user_by_telegram(message.from_user.id)
+    u = await get_user_by_telegram(message.from_user.id)
 
     if u and u.get("nickname") and u.get("password"):
-        # Пользователь уже зарегистрирован - предлагаем войти
         await message.answer(
-            "🔐 Вы уже зарегистрированы!\n"
-            "Используйте кнопку '🔐 Войти' для входа в систему.",
-            reply_markup=guest_start_kb()
+            f"✅ Добро пожаловать, {u.get('nickname', 'пользователь')}!\n\n"
+            "Выберите действие:",
+            reply_markup=role_kb(u.get("role", "user"))
         )
     else:
-        # Новый пользователь - показываем гостевое меню
         await message.answer(
             "👋 Добро пожаловать в Psytech CRM!\n\n"
             "Выберите действие:",
@@ -41,37 +54,49 @@ async def guest_start(message: Message):
 
 @router.message(F.text == "🔐 Войти")
 async def guest_login(message: Message, state: FSMContext):
-    """Обработчик кнопки входа в гостевом меню"""
-    u = get_user_by_telegram(message.from_user.id)
-
-    if u and u.get("nickname") and u.get("password"):
-        # Пользователь существует - предлагаем войти
-        await message.answer(
-            "🔐 Вход в систему\n\n"
-            "Пожалуйста, введите ваш пароль для входа:"
-        )
-        await state.set_state(GuestLoginStates.waiting_password)
-    else:
-        await message.answer(
-            "❌ Учетная запись не найдена.\n"
-            "Возможно, вы еще не зарегистрированы. "
-            "Пожалуйста, пройдите регистрацию.",
-            reply_markup=guest_start_kb()
-        )
+    # Всегда запускаем полный процесс аутентификации через команду /login
+    from crm2.handlers.auth import cmd_login
+    await cmd_login(message, state)
 
 
 @router.message(GuestLoginStates.waiting_password)
 async def process_login_password(message: Message, state: FSMContext):
-    """Обработка введенного пароля"""
-    password = message.text.strip()
-    u = get_user_by_telegram(message.from_user.id)
+    """Обработка введенного пароля с автоматическим хешированием"""
+    password = normalize_string(message.text.strip())
+    u = await get_user_by_telegram(message.from_user.id)
 
-    # Здесь должна быть реальная проверка пароля
-    # Сейчас просто заглушка
-    if u and u.get("password") == password:  # В реальности нужно хеширование
+    if not u:
+        await message.answer("❌ Ошибка: пользователь не найден")
+        await state.clear()
+        return
+
+    stored_password = u.get("password", "")
+
+    # ОТЛАДОЧНЫЙ ВЫВОД
+    print(f"[DEBUG] User object: {u}")
+    print(f"[DEBUG] Nickname: {u.get('nickname')}")
+    print(f"[DEBUG] Role: {u.get('role')}")
+    print(f"[DEBUG] All keys: {list(u.keys())}")
+
+    # Используем улучшенную проверку с авто-обновлением хеша
+    success, new_hash = verify_and_upgrade_password(password, stored_password)
+
+    if success:
+        # Если пароль был в plain text - обновляем его в базе
+        if new_hash != stored_password:
+            await update_user_password(message.from_user.id, new_hash)
+            logger.info(f"Password upgraded to bcrypt for user {u.get('nickname')}")
+
+        # Улучшенное приветствие с проверкой данных
+        nickname = u.get('nickname', 'пользователь')
+        role = u.get('role', 'user')
+
+        print(f"[DEBUG] Final nickname: {nickname}")
+        print(f"[DEBUG] Final role: {role}")
+
         await message.answer(
-            "✅ Вход выполнен успешно!",
-            reply_markup=role_kb(u.get("role", "user"))
+            f"✅ Вход выполнен успешно, {nickname}!",
+            reply_markup=role_kb(role)
         )
         await state.clear()
     else:
@@ -79,64 +104,4 @@ async def process_login_password(message: Message, state: FSMContext):
             "❌ Неверный пароль. Попробуйте еще раз или нажмите /start для возврата в меню."
         )
 
-
-@router.message(F.text == "🆕 Зарегистрироваться")
-async def guest_register(message: Message):
-    """Обработчик кнопки регистрации в гостевом меню"""
-    u = get_user_by_telegram(message.from_user.id)
-
-    if u and u.get("nickname") and u.get("password"):
-        await message.answer(
-            "✅ Вы уже зарегистрированы!\n"
-            "Используйте кнопку '🔐 Войти' для входа в систему.",
-            reply_markup=guest_start_kb()
-        )
-    else:
-        # Используем команду вместо прямого импорта
-        from crm2.bot import bot, dp
-        await message.answer(
-            "📝 Для регистрации используйте команду /register\n"
-            "или перейдите по ссылке: /register"
-        )
-
-
-@router.message(F.text == "📖 О проекте")
-async def guest_about(message: Message):
-    """Обработчик кнопки 'О проекте' в гостевом меню"""
-    await message.answer(
-        "🧠 **Psytech CRM**\n\n"
-        "Это специализированная система для управления учебными процессами "
-        "в рамках психонетических практик.\n\n"
-        "Возможности системы:\n"
-        "• 📅 Управление расписанием занятий\n"
-        "• ✅ Отслеживание посещаемости\n"
-        "• 📚 Работа с домашними заданиями\n"
-        "• 👥 Управление учебными группами\n\n"
-        "Для доступа к полному функционалу требуется регистрация.",
-        reply_markup=guest_start_kb()
-    )
-
-
-@router.message(F.text == "🔙 Выйти в меню")
-@router.message(Command("menu"))
-async def back_to_guest_menu(message: Message, state: FSMContext):
-    """Возврат в гостевое меню"""
-    await state.clear()
-    await message.answer(
-        "Главное меню:",
-        reply_markup=guest_start_kb()
-    )
-
-
-@router.message(Command("cancel"))
-async def cancel_handler(message: Message, state: FSMContext):
-    """Отмена текущего действия"""
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    await state.clear()
-    await message.answer(
-        "Действие отменено.",
-        reply_markup=guest_start_kb()
-    )
+# ... остальные обработчики ...

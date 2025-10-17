@@ -28,6 +28,19 @@ import logging
 #├── admin_homework.py       # Управление домашними заданиями
 #├── broadcast.py            # Массовые рассылки
 #└── chatgpt.py              # Проверка статуса ChatGPT
+# новое описание
+# panel.py
+# Путь: crm2/handlers/admin/panel.py
+# Назначение: Главное меню админ-панели с навигацией по разделам
+# Функции:
+#
+# _admin_kb - Создание клавиатуры главного меню админ-панели
+#
+# open_admin_menu - Открытие главного меню админ-панели
+#
+# back_to_main - Возврат в главное меню бота
+# Обработчики (не включаем в список функций, но в назначении упомянули, что это обработчики)
+
 
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -43,7 +56,7 @@ router = Router(name="admin_panel")
 @router.message(F.text == "⚙️ Админ")
 async def handle_admin_button(message: Message):
     """Обработчик кнопки Админ из главного меню"""
-    u = get_user_by_telegram(message.from_user.id)
+    u = await get_user_by_telegram(message.from_user.id)
     if not u or u.get("role") != "admin":
         await message.answer("⛔️ Доступ только для админов.")
         return
@@ -71,7 +84,7 @@ async def open_admin_menu(message: Message) -> None:
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message):
-    u = get_user_by_telegram(message.from_user.id)
+    u = await get_user_by_telegram(message.from_user.id)
     if not u or (u.get("role") != "admin"):
         await message.answer("⛔️ Доступ только для админов.")
         return

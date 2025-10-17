@@ -17,6 +17,26 @@
 # - choose_cohort - Выбор потока обучения
 # - set_cohort_cb - Сохранение выбранного потока через callback
 # - back_from_inline - Возврат из инлайн-меню
+# новое описание:
+# crm2/handlers/registration.py
+# Назначение: Полный цикл регистрации и редактирования профиля пользователя с FSM
+# Классы:
+# - EditField - FSM состояния для редактирования полей профиля (nickname, password, full_name, phone, email)
+# Функции:
+# - _edit_kb - Клавиатура выбора поля для редактирования
+# - _cohort_inline_kb - Инлайн-клавиатура выбора потока с визуализацией текущего
+# - _user_card - Форматирование карточки пользователя для отображения
+# Обработчики:
+# - show_fix_card_cmd - Старт редактирования по команде /fix
+# - show_fix_card_text - Старт редактирования по текстовым командам
+# - edit_nickname/save_nickname - Редактирование никнейма (FSM)
+# - edit_password/save_password - Редактирование пароля (FSM)
+# - edit_full_name/save_full_name - Редактирование ФИО (FSM)
+# - edit_phone/save_phone - Редактирование телефона (FSM)
+# - edit_email/save_email - Редактирование email (FSM)
+# - choose_cohort - Выбор потока обучения
+# - set_cohort_cb - Сохранение выбранного потока через callback
+# - back_from_inline - Возврат из инлайн-меню
 from __future__ import annotations
 
 from typing import Optional
@@ -97,14 +117,14 @@ def _user_card(u: dict) -> str:
 @router.message(Command("fix"))
 async def show_fix_card_cmd(message: Message, state: FSMContext) -> None:
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Выберите действие:", reply_markup=_edit_kb())
     await message.answer(_user_card(u))
 
 @router.message(F.text.func(lambda t: t and t.lower() in {"исправить регистрацию", "исправить", "править"}))
 async def show_fix_card_text(message: Message, state: FSMContext) -> None:
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Выберите действие:", reply_markup=_edit_kb())
     await message.answer(_user_card(u))
 
@@ -118,7 +138,7 @@ async def edit_nickname(message: Message, state: FSMContext):
 async def save_nickname(message: Message, state: FSMContext):
     set_plain_user_field_by_tg(message.from_user.id, "nickname", message.text.strip())
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Готово. Никнейм обновлён.")
     await message.answer(_user_card(u), reply_markup=_edit_kb())
 
@@ -131,7 +151,7 @@ async def edit_password(message: Message, state: FSMContext):
 async def save_password(message: Message, state: FSMContext):
     set_plain_user_field_by_tg(message.from_user.id, "password", message.text.strip())
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Готово. Пароль обновлён.")
     await message.answer(_user_card(u), reply_markup=_edit_kb())
 
@@ -144,7 +164,7 @@ async def edit_full_name(message: Message, state: FSMContext):
 async def save_full_name(message: Message, state: FSMContext):
     set_plain_user_field_by_tg(message.from_user.id, "full_name", message.text.strip())
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Готово. ФИО обновлено.")
     await message.answer(_user_card(u), reply_markup=_edit_kb())
 
@@ -157,7 +177,7 @@ async def edit_phone(message: Message, state: FSMContext):
 async def save_phone(message: Message, state: FSMContext):
     set_plain_user_field_by_tg(message.from_user.id, "phone", message.text.strip())
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Готово. Телефон обновлён.")
     await message.answer(_user_card(u), reply_markup=_edit_kb())
 
@@ -170,14 +190,14 @@ async def edit_email(message: Message, state: FSMContext):
 async def save_email(message: Message, state: FSMContext):
     set_plain_user_field_by_tg(message.from_user.id, "email", message.text.strip())
     await state.clear()
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     await message.answer("Готово. Email обновлён.")
     await message.answer(_user_card(u), reply_markup=_edit_kb())
 
 # ───────────────────────── Поток ─────────────────────────
 @router.message(F.text == "Поток")
 async def choose_cohort(message: Message):
-    u = get_user_by_telegram(message.from_user.id) or {}
+    u = await get_user_by_telegram(message.from_user.id) or {}
     current = u.get("cohort_id")
     await message.answer(
         "Выберите ваш поток:",
@@ -191,7 +211,7 @@ async def set_cohort_cb(cq: CallbackQuery):
     cohort_id = int(value)
     set_plain_user_field_by_tg(tg_id, "cohort_id", None if cohort_id == 0 else cohort_id)
     await upsert_participant_by_tg(tg_id, None if cohort_id == 0 else cohort_id)
-    u = get_user_by_telegram(tg_id) or {}
+    u = await get_user_by_telegram(tg_id) or {}
     await cq.message.edit_text("Поток обновлён.\n\n" + _user_card(u))
     await cq.answer("Сохранено ✅")
 

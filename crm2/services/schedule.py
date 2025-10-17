@@ -10,6 +10,28 @@
 # - _load_one_file - Загрузка одного XLSX файла расписания
 # - load_all - Загрузка всех расписаний (XLSX + fallback на БД)
 # - get_user_cohort_id - Получение ID потока пользователя
+# - upcoming - Ближайшие занятия для пользовcrm2/services/schedule.pyателя
+# - list_for_cohort - Список сессий для конкретного потока
+# - detail_for_cohort_date - Детали сессии по потоку и дате
+# - list_all - Общий список всех сессий
+# - _rows_to_sessions - Конвертация строк БД в объекты Session
+# - format_next - Форматирование информации о ближайшем занятии
+# - format_sessions_brief - Краткое форматирование списка сессий
+# - next_training_text_for_user - Текст ближайшего занятия для пользователя
+# crm2/services/schedule.py
+# новое описание:
+# crm2/services/schedule.py
+# Назначение: Комплексная система загрузки и работы с расписанием из XLSX и БД
+# Классы:
+# - Session - Dataclass для представления учебной сессии (даты, код, тема, аннотация)
+# Функции:
+# - _norm - Нормализация строк для сравнения
+# - _parse_date - Универсальный парсинг дат из разных форматов
+# - _find_header_row - Поиск строки заголовков в XLSX файле
+# - _cohort_id_from_filename - Извлечение ID потока из имени файла
+# - _load_one_file - Загрузка одного XLSX файла расписания
+# - load_all - Загрузка всех расписаний (XLSX + fallback на БД)
+# - get_user_cohort_id - Получение ID потока пользователя
 # - upcoming - Ближайшие занятия для пользователя
 # - list_for_cohort - Список сессий для конкретного потока
 # - detail_for_cohort_date - Детали сессии по потоку и дате
@@ -27,16 +49,15 @@ from pathlib import Path
 from typing import Iterable, Optional, Dict, List, Tuple
 
 from openpyxl import load_workbook
-from crm2.services.users import get_user_by_telegram, get_user_cohort_id_by_tg
+from crm2.services.users import get_user_by_telegram
 from crm2.db.core import get_db_connection
-from crm2.db.sessions import get_upcoming_sessions  # ← уже готовая логика
+from crm2.db.sessions import get_upcoming_sessions
 import sqlite3
 
 from crm2.db.sessions import (
-    get_upcoming_sessions_by_cohort,   # если добавлял ранее
+    get_upcoming_sessions_by_cohort,
     get_session_detail_by_cohort_and_date,
 )
-
 
 # Где лежат файлы расписаний
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -64,6 +85,7 @@ class Session:
 
 def _norm(s) -> str:
     return str(s).strip().lower() if s is not None else ""
+
 
 def _parse_date(cell_val) -> date:
     """Поддержка datetime/date и строковых форматов 'YYYY-MM-DD' или 'DD.MM.YYYY'."""
@@ -136,7 +158,6 @@ def _find_header_row(ws) -> Tuple[int, Dict[str, int]]:
     )
 
 
-
 def _cohort_id_from_filename(path: Path) -> Optional[int]:
     """
     Вытаскиваем id потока из имени файла вида '... 1 поток.xlsx' или '... 2 поток.xlsx'.
@@ -205,23 +226,25 @@ def load_all() -> Dict[int, List[Session]]:
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
         cur = con.execute("""
-            SELECT id, start_date, COALESCE(end_date, start_date) AS end_date,
-                   COALESCE(topic_code,'') AS topic_code,
-                   COALESCE(title,'')      AS title,
-                   COALESCE(annotation,'') AS annotation,
-                   cohort_id
-            FROM sessions
-            ORDER BY start_date ASC, id ASC
-        """)
+                          SELECT id,
+                                 start_date,
+                                 COALESCE(end_date, start_date) AS end_date,
+                                 COALESCE(topic_code, '')       AS topic_code,
+                                 COALESCE(title, '')            AS title,
+                                 COALESCE(annotation, '')       AS annotation,
+                                 cohort_id
+                          FROM sessions
+                          ORDER BY start_date ASC, id ASC
+                          """)
         rows = cur.fetchall()
     for r in rows:
         try:
             s = Session(
-                start = datetime.fromisoformat(r["start_date"]).date(),
-                end = datetime.fromisoformat(r["end_date"]).date(),
-                code = str(r["topic_code"] or ""),
-                title = str(r["title"] or ""),
-                annotation = str(r["annotation"] or ""),
+                start=datetime.fromisoformat(r["start_date"]).date(),
+                end=datetime.fromisoformat(r["end_date"]).date(),
+                code=str(r["topic_code"] or ""),
+                title=str(r["title"] or ""),
+                annotation=str(r["annotation"] or ""),
             )
         except Exception:
             continue
@@ -231,22 +254,31 @@ def load_all() -> Dict[int, List[Session]]:
         v.sort(key=lambda s: (s.start, s.end))
     return result
 
-def get_user_cohort_id(telegram_id: int) -> Optional[int]:
-    # Сначала пробуем явный cohort_id в users
-    u = get_user_by_telegram(telegram_id)
-    if u and u.get("cohort_id"):
-        return u["cohort_id"]
-    # Совместимость: если поток хранится в participants — берём оттуда
-    return get_user_cohort_id_by_tg(telegram_id)
+
+async def get_user_cohort_id(telegram_id: int) -> Optional[int]:
+    """Получаем cohort_id пользователя по Telegram ID"""
+    user = await get_user_by_telegram(telegram_id)
+    return user.get('cohort_id') if user else None
 
 
-def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
-    """Ближайшие занятия для пользователя (унифицировано: sessions / events / session_days)."""
-    # 1) Пытаемся взять напрямую из БД через готовый репозиторий
-    rows = get_upcoming_sessions(limit=limit, tg_id=telegram_id)
+async def upcoming(telegram_id: int, limit: int = 1) -> List[Session]:
+    """Ближайшие занятия для пользователя (асинхронная версия)"""
+    # Получаем cohort_id пользователя
+    cohort_id = await get_user_cohort_id(telegram_id)
+
+    # Используем существующую синхронную функцию, но в асинхронном контексте
+    # В реальном приложении лучше сделать асинхронную версию get_upcoming_sessions
+    def _sync_upcoming():
+        return get_upcoming_sessions(limit=limit, tg_id=telegram_id)
+
+    # Имитируем асинхронный вызов синхронной функции
+    # В продакшене используйте asyncio.to_thread или сделайте асинхронную версию БД
+    rows = _sync_upcoming()
+
     if rows:
         def _to_date(s: str) -> date:
             return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
+
         items: List[Session] = []
         for r in rows:
             try:
@@ -263,17 +295,21 @@ def upcoming(telegram_id: int, *, limit: int = 1) -> List[Session]:
                 continue
         if items:
             return items[:limit]
-    # 2) Fallback: по-прежнему пробуем XLSX/«расписание *.xlsx» (и sessions, если они есть)
-    cohort_id = get_user_cohort_id(telegram_id)
-    today = date.today()
+
+    # Fallback: используем load_all
     all_by_cohort = load_all()
-    pool = all_by_cohort.get(cohort_id, []) if (cohort_id in all_by_cohort) else [s for v in all_by_cohort.values() for s in v]
+    today = date.today()
+
+    if cohort_id and cohort_id in all_by_cohort:
+        pool = all_by_cohort[cohort_id]
+    else:
+        pool = [s for v in all_by_cohort.values() for s in v]
+
     return [s for s in pool if s.end >= today][:limit]
 
 
-from crm2.db.sessions import get_upcoming_sessions_by_cohort
-
-def list_for_cohort(cohort_id: int, *, limit: int = 5) -> list[Session]:
+def list_for_cohort(cohort_id: int, limit: int = 5) -> list[Session]:
+    """Синхронная версия для использования в синхронном контексте"""
     rows = get_upcoming_sessions_by_cohort(cohort_id, limit=limit)
     return _rows_to_sessions(rows)[:limit]
 
@@ -292,14 +328,15 @@ def detail_for_cohort_date(cohort_id: int, date_iso: str) -> Optional[Session]:
     )
 
 
-
-def list_all(*, limit: int = 50) -> list[Session]:
-    rows = get_upcoming_sessions_by_cohort(None, limit=limit)  # без фильтра потока
+def list_all(limit: int = 50) -> list[Session]:
+    rows = get_upcoming_sessions_by_cohort(None, limit=limit)
     return _rows_to_sessions(rows)[:limit]
+
 
 def _rows_to_sessions(rows) -> list[Session]:
     def _to_date(s: str) -> date:
         return datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s, "%Y-%m-%d").date()
+
     items = []
     for r in rows or []:
         try:
@@ -315,7 +352,6 @@ def _rows_to_sessions(rows) -> list[Session]:
     return items
 
 
-
 def format_next(s: Session) -> str:
     return f"Ближайшее занятие: {s.start.strftime('%d.%m.%Y')} — {s.end.strftime('%d.%m.%Y')}"
 
@@ -327,7 +363,7 @@ def format_sessions_brief(sessions: List[Session]) -> str:
     return "Расписание занятий:\n" + "\n".join(lines)
 
 
-def next_training_text_for_user(telegram_id: int) -> str:
-    """Текст «ближайшего занятия» (или пустая строка, если нет данных/потока)."""
-    items = upcoming(telegram_id, limit=1)
+async def next_training_text_for_user(telegram_id: int) -> str:
+    """Асинхронная версия функции получения текста ближайшего занятия"""
+    items = await upcoming(telegram_id, limit=1)
     return format_next(items[0]) if items else ""

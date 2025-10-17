@@ -21,7 +21,23 @@ from typing import Optional
 # - ensure_homework_delivery_table - Создание таблицы доставки ДЗ
 # - get_not_yet_delivered - Получение пользователей без доставленных ДЗ
 # - mark_homework_delivered - Отметка доставки ДЗ
-
+# новое описание:
+# crm2/services/attendance.py
+# Назначение: Сервисный слой для работы с посещаемостью и домашними заданиями (синхронная версия)
+# Функции:
+# - find_today_session - Поиск сегодняшнего занятия в session_days
+# - find_recent_past_sessions - Получение последних прошедших занятий
+# - get_stream_title - Получение названия потока
+# - get_attendance_map - Получение карты посещаемости для сессии
+# - upsert_attendance - Обновление/добавление записи посещаемости
+# - status_to_emoji/emoji_to_status - Конвертация статусов в эмодзи и обратно
+# - mark_attendance - Асинхронное отметка посещаемости
+# - get_present_users - Получение присутствовавших пользователей
+# - find_user_id_by_nickname - Поиск user_id по никнейму
+# - get_sessions_near - Получение ближайших сессий
+# - ensure_homework_delivery_table - Создание таблицы доставки ДЗ
+# - get_not_yet_delivered - Получение пользователей без доставленных ДЗ
+# - mark_homework_delivered - Отметка доставки ДЗ
 from crm2.db.core import get_db_connection, DB_PATH
 # crm2/services/attendance.py
 from crm2.db import db
@@ -36,7 +52,7 @@ def find_today_session() -> Optional[Dict[str, Any]]:
     Если несколько (по разным потокам) — берём с максимальным id (последнее заведённое).
     """
     q = """
-        SELECT id, date, stream_id, topic_id, topic_code
+        SELECT id, date, cohort_id, topic_id, topic_code
         FROM session_days
         WHERE date = ?
         ORDER BY id DESC
@@ -53,7 +69,7 @@ def find_recent_past_sessions(limit: int = 5) -> List[Dict[str, Any]]:
     Последние прошедшие занятия (date < today), по убыванию даты/id.
     """
     q = """
-        SELECT id, date, stream_id, topic_id, topic_code
+        SELECT id, date, cohort_id, topic_id, topic_code
         FROM session_days
         WHERE date < ?
         ORDER BY date DESC, id DESC
@@ -65,17 +81,17 @@ def find_recent_past_sessions(limit: int = 5) -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-def get_stream_title(stream_id: int) -> str:
+def get_stream_title(cohort_id: int) -> str:
     """
     streams пуста → подставляем 'Поток N'. Если позже появится title — будем читать из streams.
     """
     # Пробуем прочитать из streams
     with get_db_connection() as con:
         con.row_factory = sqlite3.Row
-        row = con.execute("SELECT title FROM streams WHERE id = ?", (stream_id,)).fetchone()
+        row = con.execute("SELECT title FROM streams WHERE id = ?", (cohort_id,)).fetchone()
     if row and row["title"]:
         return row["title"]
-    return f"Поток {stream_id}"
+    return f"Поток {cohort_id}"
 
 
 def get_attendance_map(session_id: int) -> Dict[int, str]:
@@ -149,7 +165,7 @@ async def get_sessions_near(days: int = 14):
     Получить список ближайших занятий из session_days (по умолчанию 2 недели).
     """
     sql = """
-          SELECT id, date, stream_id, topic_code
+          SELECT id, date, cohort_id, topic_code
           FROM session_days
           WHERE date BETWEEN DATE ('now') AND DATE ('now', ?)
           ORDER BY date \
